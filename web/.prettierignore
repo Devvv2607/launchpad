@@ -1,0 +1,6 @@
+node_modules
+.next
+src/lib/api/schema.d.ts
+openapi.json
+package-lock.json
+src/components/ui

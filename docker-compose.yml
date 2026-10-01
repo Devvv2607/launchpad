@@ -1,0 +1,88 @@
+# Local stack: `cp .env.example .env && make keys >> .env && docker compose up --build`
+name: launchpad
+
+x-python-env: &python-env
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+asyncpg://launchpad:launchpad@postgres:5432/launchpad
+    REDIS_URL: redis://redis:6379/0
+    S3_ENDPOINT_URL: http://minio:9000
+    STORAGE_BACKEND: s3
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: launchpad
+      POSTGRES_PASSWORD: launchpad
+      POSTGRES_DB: launchpad
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U launchpad"]
+      interval: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: launchpad
+      MINIO_ROOT_PASSWORD: launchpad-dev-secret
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on: [minio]
+    entrypoint: >
+      sh -c "until mc alias set local http://minio:9000 launchpad launchpad-dev-secret; do sleep 1; done;
+             mc mb --ignore-existing local/launchpad && mc anonymous set download local/launchpad/public"
+    restart: "no"
+
+  migrate:
+    <<: *python-env
+    build: { context: ., dockerfile: api/Dockerfile }
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    <<: *python-env
+    build: { context: ., dockerfile: api/Dockerfile }
+    ports: ["8000:8000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 5s
+      retries: 20
+
+  worker:
+    <<: *python-env
+    build: { context: ., dockerfile: worker/Dockerfile }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  web:
+    build:
+      context: ./web
+      args: { API_INTERNAL_URL: http://api:8000 }
+    ports: ["3000:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  miniodata:
