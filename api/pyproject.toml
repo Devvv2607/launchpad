@@ -26,6 +26,8 @@ dependencies = [
   "redis>=5.0",
   "python-multipart>=0.0.9",
   "tzdata>=2024.1",
+  "boto3>=1.35",
+  "pillow>=10.4",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +37,8 @@ dev = [
   "ruff>=0.6",
   "mypy>=1.11",
   "respx>=0.21",
+  "pre-commit>=3.8",
+  "boto3-stubs[s3]>=1.35",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -64,7 +68,7 @@ mypy_path = "src"
 packages = ["launchpad"]
 
 [[tool.mypy.overrides]]
-module = ["arq.*", "pgvector.*"]
+module = ["arq.*", "pgvector.*", "asyncpg.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

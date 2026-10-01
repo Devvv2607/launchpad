@@ -46,6 +46,39 @@ make dev-web   # :3000
 
 Run `make check` to lint, type-check and test. Tests need `TEST_DATABASE_URL`, pointing at a disposable database.
 
+### `make doctor`
+
+`make doctor` checks your machine before you debug anything else. It verifies:
+
+- Python ≥ 3.11 and Node ≥ 22
+- Postgres is reachable and has the `pgvector` extension
+- Redis is reachable
+- storage (local dir or S3 bucket) is writable
+- every env var required by your chosen providers is set
+
+Missing variables are listed **by name only**: values are never printed. It exits non-zero if anything fails.
+
+```text
+  ✓ Python    3.11.0 (need >= 3.11)
+  ✓ Postgres  18.3 at postgresql://launchpad@localhost:55432/launchpad
+  ✓ pgvector  extension installed (v0.8.2)
+  ✗ Env vars  missing or invalid: LLM_MODEL, GEMINI_API_KEY
+```
+
+### Pre-commit hooks (secret scanning)
+
+`make setup` installs the git hooks (`pre-commit install`). Every commit then runs:
+
+| Hook | What it does |
+| --- | --- |
+| **gitleaks** | Blocks API keys, tokens and private keys in staged changes. CI also scans the **full history**. |
+| ruff + ruff-format | Python lint and formatting |
+| mypy (strict) | Type-checks `api/` and `worker/` |
+| eslint + prettier | Web lint and formatting |
+| hygiene | Merge markers, large files, private keys, YAML validity |
+
+Run everything manually with `api/.venv/bin/pre-commit run --all-files`. If gitleaks flags a real secret, **rotate it**: deleting it in a later commit doesn't remove it from history. For a genuine false positive, add an inline `gitleaks:allow` comment and explain why in the PR.
+
 ## Environment variables
 
 See [`.env.example`](.env.example) for the full list. The important ones:

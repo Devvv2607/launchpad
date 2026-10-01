@@ -6,7 +6,7 @@ PY := api/.venv/Scripts/python
 endif
 
 .PHONY: help setup keys up down logs migrate migration dev-api dev-worker dev-web \
-        test lint fmt typecheck gen-api check
+        test lint fmt typecheck gen-api check doctor
 
 help:  ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -15,6 +15,7 @@ setup:  ## Create the Python venv and install API, worker and web dependencies
 	python3.11 -m venv api/.venv || py -3.11 -m venv api/.venv
 	$(PY) -m pip install -e "./api[dev]" -e ./worker
 	cd web && npm ci
+	$(PY) -m pre_commit install
 
 keys:  ## Print fresh secrets for .env
 	@echo "JWT_SECRET=$$($(PY) -c 'import secrets;print(secrets.token_urlsafe(48))')"
@@ -49,7 +50,7 @@ test:  ## Run backend tests (set TEST_DATABASE_URL to a disposable database)
 	cd api && ../$(PY) -m pytest
 	cd worker && ../$(PY) -m pytest
 
-lint:  ## Lint and format-check everything
+lint:  ## Lint and format-check everything (secret scanning runs in pre-commit + CI)
 	cd api && ../$(PY) -m ruff check . && ../$(PY) -m ruff format --check .
 	cd worker && ../$(PY) -m ruff check . && ../$(PY) -m ruff format --check .
 	cd web && npm run -s lint && npm run -s format:check
@@ -69,3 +70,6 @@ gen-api:  ## Regenerate the OpenAPI spec and the typed TS client
 	cd web && npm run -s gen:api
 
 check: lint typecheck test  ## Everything CI runs
+
+doctor:  ## Check toolchain, services and required env vars (never prints secret values)
+	cd api && ../$(PY) -m launchpad.doctor
