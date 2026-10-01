@@ -26,7 +26,7 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
       </main>
       <aside
         aria-hidden
-        className="relative hidden overflow-hidden bg-sidebar px-12 py-16 text-sidebar-foreground lg:flex lg:flex-col lg:justify-center"
+        className="relative hidden overflow-hidden border-l border-sidebar-border bg-sidebar px-12 py-16 text-sidebar-foreground lg:flex lg:flex-col lg:justify-center"
       >
         <h2 className="max-w-md text-4xl leading-tight font-semibold text-white">
           Your week of marketing, planned by an agent and signed off by you.

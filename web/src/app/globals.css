@@ -26,6 +26,7 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-placeholder: var(--placeholder);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -75,9 +76,10 @@
   --secondary-foreground: #1e2250;
   --muted: #eceef6;
   --muted-foreground: #5b6089;
+  --placeholder: #6e739a;
   --accent: #e4e7f4;
   --accent-foreground: #1e2250;
-  --destructive: #d43f63;
+  --destructive: #b02a4f;
   --border: #dde0ee;
   --input: #cfd3e6;
   --ring: #4b52a8;
@@ -86,7 +88,7 @@
   --marigold-soft: #fdf1dc;
   --leaf: #1e8a5b;
   --leaf-soft: #def3e9;
-  --rose: #d43f63;
+  --rose: #b02a4f;
   --rose-soft: #fbe3e9;
 
   --sidebar: #1e2250;
@@ -118,6 +120,8 @@
   --secondary-foreground: #e7e9f7;
   --muted: #20244a;
   --muted-foreground: #9da2c9;
+  /* Dimmer than muted so hints never read as typed values; still ~4.5:1 on inputs. */
+  --placeholder: #8388ad;
   --accent: #272c57;
   --accent-foreground: #e7e9f7;
   --destructive: #f06c8b;
@@ -154,6 +158,16 @@
   h3 {
     font-family: var(--font-heading);
     letter-spacing: -0.015em;
+  }
+  /* Placeholders must read as hints, not as values the user already typed. */
+  /* Native colour inputs: outline the swatch so dark brand colours stay visible on dark UI. */
+  input[type="color"]::-webkit-color-swatch {
+    border: 1px solid color-mix(in oklab, var(--foreground) 35%, transparent);
+    border-radius: 4px;
+  }
+  input[type="color"]::-moz-color-swatch {
+    border: 1px solid color-mix(in oklab, var(--foreground) 35%, transparent);
+    border-radius: 4px;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
