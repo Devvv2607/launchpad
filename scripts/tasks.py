@@ -33,9 +33,11 @@ NPX = "npx.cmd" if IS_WINDOWS else "npx"
 TASKS: dict[str, tuple[Callable[[list[str]], None], str]] = {}
 
 
-def task(help_text: str) -> Callable[[Callable[[list[str]], None]], Callable[[list[str]], None]]:
+def task(
+    help_text: str, name: str | None = None
+) -> Callable[[Callable[[list[str]], None]], Callable[[list[str]], None]]:
     def deco(fn: Callable[[list[str]], None]) -> Callable[[list[str]], None]:
-        TASKS[fn.__name__.replace("_", "-")] = (fn, help_text)
+        TASKS[name or fn.__name__.replace("_", "-")] = (fn, help_text)
         return fn
 
     return deco
@@ -352,6 +354,16 @@ def check(args: list[str]) -> None:
     lint(args)
     typecheck(args)
     test([])
+
+
+@task("Run the content-engine eval: eval gemini | eval groq [--model ...] | eval --fake", "eval")
+def run_eval(args: list[str]) -> None:
+    if not args:
+        args = ["--provider", "gemini"]
+    elif args[0] in ("gemini", "groq", "openai", "anthropic"):
+        args = ["--provider", *args]
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    py("-m", "evals.run", *args, cwd=API, env=env)
 
 
 @task("Docker: build and start the full stack")

@@ -5,13 +5,16 @@ TASKS := $(PYTHON) scripts/tasks.py
 
 TARGETS := setup keys doctor db-init db-start db-stop migrate dev dev-api dev-worker dev-web \
            test lint fmt typecheck gen-api check up down logs
-.PHONY: help migration $(TARGETS)
+.PHONY: help migration eval $(TARGETS)
 
 help:  ## List targets
 	@$(TASKS)
 
 $(TARGETS):
 	@$(TASKS) $@
+
+eval:  ## make eval p=gemini (or p=groq, p=--fake); extra args in a="..."
+	@$(TASKS) eval $(p) $(a)
 
 migration:  ## make migration m="add foo"
 	@$(TASKS) migration "$(m)"

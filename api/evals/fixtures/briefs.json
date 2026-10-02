@@ -1,0 +1,22 @@
+[
+  {"id": "cafe-ig-monsoon", "workspace": "mumbai_cafe", "channel": "instagram_post", "n": 3,
+   "brief": "Announce the monsoon special (masala chai + onion pakoras) for this week."},
+  {"id": "cafe-carousel-menu", "workspace": "mumbai_cafe", "channel": "instagram_carousel", "n": 2,
+   "brief": "A carousel introducing our five most-ordered menu items with prices, ending with an invite to visit."},
+  {"id": "cafe-email-openmic", "workspace": "mumbai_cafe", "channel": "email", "n": 1,
+   "brief": "Newsletter inviting regulars to this month's poetry open mic (last Friday, 7pm); sign-ups at the counter."},
+  {"id": "cafe-x-reading", "workspace": "mumbai_cafe", "channel": "x_post", "n": 2,
+   "brief": "Promote the Sunday silent reading circle to people who've never been."},
+  {"id": "saas-li-close", "workspace": "b2b_saas", "channel": "linkedin_post", "n": 3,
+   "brief": "Thought-leadership post on why month-end close takes so long for Indian mid-market finance teams, and what fixes it."},
+  {"id": "saas-email-pilot", "workspace": "b2b_saas", "channel": "email", "n": 1,
+   "brief": "Outbound email offering the free 30-day pilot to AP managers handling 500+ invoices a month."},
+  {"id": "saas-x-gst", "workspace": "b2b_saas", "channel": "x_post", "n": 2,
+   "brief": "A thread explaining how GSTIN mismatches on vendor invoices quietly cost companies input tax credit."},
+  {"id": "fit-ig-foundations", "workspace": "fitness_studio", "channel": "instagram_post", "n": 3,
+   "brief": "Fill the next Foundations batch (6 weeks, Mon/Wed/Fri) for complete beginners."},
+  {"id": "fit-li-hiring", "workspace": "fitness_studio", "channel": "linkedin_post", "n": 2,
+   "brief": "Hiring post: we need a certified strength coach who loves working with beginners."},
+  {"id": "fit-carousel-40plus", "workspace": "fitness_studio", "channel": "instagram_carousel", "n": 2,
+   "brief": "Carousel busting myths about strength training after 40, promoting the Strong at 40+ class."}
+]

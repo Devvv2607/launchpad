@@ -1,0 +1,71 @@
+{
+  "mumbai_cafe": {
+    "workspace": {
+      "name": "Chai & Chapter",
+      "industry": "food",
+      "description": "Bookshop café serving cutting chai, filter coffee and all-day snacks in Bandra.",
+      "audience": "Students and young professionals in Bandra who read, work and meet friends over chai",
+      "locations": ["Mumbai", "Bandra"],
+      "website": "https://chaiandchapter.example"
+    },
+    "brand_kit": {
+      "primary_color": "#2B3A55",
+      "secondary_color": "#E8A33D",
+      "voice_tone": "Warm, bookish and a little cheeky. Talks like the regular who knows every barista by name. Occasional Hinglish, never forced.",
+      "do_words": ["cutting chai", "corner table", "shelf"],
+      "dont_words": ["synergy", "best-in-class", "world-class", "foodies"],
+      "sample_posts": [
+        "Rain outside, chai inside. Your corner table (and a slightly dog-eared Murakami) is waiting. ☕📚",
+        "Sunday reading circle, 9am. No talking, just pages turning and the charcoal crackling. Bring any book.",
+        "Bun maska restocked. Yes, the soft one. No, we won't judge if you order two."
+      ]
+    },
+    "doc": "docs/mumbai_cafe.md"
+  },
+  "b2b_saas": {
+    "workspace": {
+      "name": "LedgerLoop",
+      "industry": "tech",
+      "description": "Accounts-payable automation for Indian mid-market companies: invoice capture, three-way matching, Tally/Zoho sync.",
+      "audience": "CFOs, finance controllers and AP managers at Indian companies with 200-2,000 employees",
+      "locations": ["Bengaluru"],
+      "website": "https://ledgerloop.example"
+    },
+    "brand_kit": {
+      "primary_color": "#0F4C5C",
+      "secondary_color": "#5FA8A0",
+      "voice_tone": "Clear, confident and practical. Speaks finance fluently but never hides behind jargon. Specific numbers over adjectives.",
+      "do_words": ["month-end close", "three-way match", "GST"],
+      "dont_words": ["revolutionary", "disrupt", "game-changer", "AI-powered magic"],
+      "sample_posts": [
+        "Month-end close shouldn't mean a week of chasing GRNs. Here's how one AP team got it down to two days.",
+        "Three-way matching sounds simple until 4% of your invoices have a rounding difference. Tolerance rules fix that.",
+        "GSTIN typos cost real money in ITC. We now flag them before a bill is approved."
+      ]
+    },
+    "doc": "docs/b2b_saas.md"
+  },
+  "fitness_studio": {
+    "workspace": {
+      "name": "Iron & Ease",
+      "industry": "fitness",
+      "description": "Coached small-group strength training for beginners and people returning to exercise in Koramangala.",
+      "audience": "Adults 28-55 in Bengaluru who feel intimidated by big gyms and want to get strong safely",
+      "locations": ["Bengaluru", "Koramangala"],
+      "website": "https://ironandease.example"
+    },
+    "brand_kit": {
+      "primary_color": "#1F2933",
+      "secondary_color": "#F25C54",
+      "voice_tone": "Encouraging and plain-spoken. Celebrates small wins, never shames bodies, never promises transformations.",
+      "do_words": ["coached", "small group", "strong"],
+      "dont_words": ["shred", "beast mode", "no excuses", "bikini body"],
+      "sample_posts": [
+        "First deadlift today for Priya. 30 kg, perfect form, the biggest grin in the room.",
+        "You don't need to be fit to start. That's what the Foundations course is for.",
+        "Six people, one coach, zero mirrors-and-ego. Come see what strength training can feel like."
+      ]
+    },
+    "doc": "docs/fitness_studio.md"
+  }
+}

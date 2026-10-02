@@ -69,6 +69,7 @@ known-first-party = ["launchpad", "launchpad_worker", "tests"]
 # Prompt guidance + user-facing rule messages: full sentences read better unwrapped.
 "src/launchpad/content/engine.py" = ["E501"]
 "src/launchpad/content/platform_rules.py" = ["E501"]
+"evals/**" = ["E501", "S101", "S603", "S607"]  # report templates, fixtures, git sha lookup
 
 [tool.mypy]
 python_version = "3.11"

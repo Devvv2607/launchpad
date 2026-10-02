@@ -80,6 +80,11 @@ jobs:
       - name: Test worker
         working-directory: worker
         run: pytest
+      - name: Eval harness (offline, scripted provider)
+        working-directory: api
+        run: |
+          alembic upgrade head
+          python -m evals.run --fake --out "$RUNNER_TEMP/evals"
       - name: OpenAPI spec is up to date
         run: |
           cd api && python -m launchpad.openapi > ../web/openapi.json
