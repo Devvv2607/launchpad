@@ -144,6 +144,20 @@ def required_env(s: Settings) -> dict[str, bool]:
     return req
 
 
+def check_embedding_dim(s: Settings) -> Result:
+    from launchpad.models._types import EMBEDDING_DIM
+
+    if s.embedding_dim != EMBEDDING_DIM:
+        return Result(
+            "Embeddings",
+            FAIL,
+            f"EMBEDDING_DIM={s.embedding_dim} but the database column is vector({EMBEDDING_DIM}); "
+            "write a migration and re-index, or set EMBEDDING_DIM back",
+        )
+    model = s.embedding_model or "(EMBEDDING_MODEL unset)"
+    return Result("Embeddings", OK, f"{model} at {EMBEDDING_DIM} dims matches the DB column")
+
+
 def check_env(s: Settings) -> Result:
     missing = [name for name, present in required_env(s).items() if not present]
     if missing:
@@ -161,6 +175,7 @@ async def run() -> int:
     results = [check_python(), check_node()]
     for gathered in await asyncio.gather(*(c() for c in checks)):
         results.extend(gathered if isinstance(gathered, list) else [gathered])
+    results.append(check_embedding_dim(s))
     results.append(check_env(s))
 
     width = max(len(r.name) for r in results)

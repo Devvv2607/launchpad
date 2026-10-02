@@ -67,6 +67,7 @@ class LLMCall(UUIDPk, Timestamps, Base):
     """Log of every LLM/embedding/image call, for usage + cost reporting."""
 
     __tablename__ = "llm_calls"
+    __table_args__ = (Index("ix_llm_calls_ws_created", "workspace_id", "created_at"),)
 
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
@@ -74,11 +75,24 @@ class LLMCall(UUIDPk, Timestamps, Base):
     run_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("agent_runs.id", ondelete="SET NULL"), index=True
     )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
     provider: Mapped[str] = mapped_column(String(32))
     model: Mapped[str] = mapped_column(String(120))
-    purpose: Mapped[str] = mapped_column(String(64))
+    purpose: Mapped[str] = mapped_column(String(64))  # e.g. "write_content", "critique_content"
+    route: Mapped[str] = mapped_column(String(32), default="writing")  # Purpose used for routing
+    status: Mapped[str] = mapped_column(String(16), default="ok")  # ok | error
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    error: Mapped[str | None] = mapped_column(Text)
+    prompt_name: Mapped[str | None] = mapped_column(String(64))
+    prompt_version: Mapped[str | None] = mapped_column(String(32))
+    request_id: Mapped[str | None] = mapped_column(String(128))
+    attempts: Mapped[int] = mapped_column(Integer, default=1)
     tokens_in: Mapped[int] = mapped_column(Integer, default=0)
     tokens_out: Mapped[int] = mapped_column(Integer, default=0)
-    cost_usd: Mapped[Decimal] = mapped_column(_COST, default=Decimal(0))
+    # NULL = price unknown for this model (never guessed).
+    cost_usd: Mapped[Decimal | None] = mapped_column(_COST)
     latency_ms: Mapped[int] = mapped_column(Integer, default=0)
-    error: Mapped[str | None] = mapped_column(Text)
+    # Prompts/outputs; only stored when LOG_LLM_PAYLOADS=true.
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSON)

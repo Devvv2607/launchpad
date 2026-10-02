@@ -33,6 +33,10 @@ class BrandKit(UUIDPk, Timestamps, Base):
     do_words: Mapped[list[str]] = mapped_column(JSON, default=list)
     dont_words: Mapped[list[str]] = mapped_column(JSON, default=list)
     sample_posts: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # Structured profile produced from sample posts (editable). See schemas.brand.VoiceProfile.
+    voice_profile: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    # Colours extracted from the logo, offered as suggestions (never auto-applied).
+    logo_palette: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
 
     workspace: Mapped[Workspace] = relationship(back_populates="brand_kit", lazy="raise")
 
@@ -45,9 +49,13 @@ class BrandDocument(UUIDPk, Timestamps, Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
+    source_type: Mapped[str] = mapped_column(String(16), default="file")  # file | url
     filename: Mapped[str] = mapped_column(String(255))
+    source_url: Mapped[str | None] = mapped_column(String(1000))
     mime_type: Mapped[str] = mapped_column(String(100))
-    storage_key: Mapped[str] = mapped_column(String(500))
+    size_bytes: Mapped[int | None] = mapped_column(Integer)
+    storage_key: Mapped[str | None] = mapped_column(String(500))
+    meta: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
     status: Mapped[DocumentStatus] = mapped_column(
         str_enum(DocumentStatus), default=DocumentStatus.PENDING
     )
@@ -76,3 +84,7 @@ class BrandChunk(UUIDPk, Timestamps, Base):
     content: Mapped[str] = mapped_column(Text)
     embedding: Mapped[Any] = mapped_column(Vector(EMBEDDING_DIM))
     embedding_model: Mapped[str] = mapped_column(String(120))
+    embedding_dim: Mapped[int] = mapped_column(Integer)
+    token_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Citation info: {"source": filename|url, "page": int|None, "heading": str|None}
+    meta: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)

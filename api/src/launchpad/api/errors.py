@@ -13,6 +13,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from launchpad.llm.errors import LLMError, LLMRateLimitError
+
 log = structlog.get_logger(__name__)
 
 
@@ -79,6 +81,21 @@ def install_error_handlers(app: FastAPI) -> None:
     async def _app_error(request: Request, exc: AppError) -> JSONResponse:
         return JSONResponse(
             _body(request, exc.code, exc.message, exc.details), status_code=exc.status_code
+        )
+
+    @app.exception_handler(LLMError)
+    async def _llm_error(request: Request, exc: LLMError) -> JSONResponse:
+        details: dict[str, Any] = {"hint": exc.hint, "provider": exc.provider, "model": exc.model}
+        if exc.request_id:
+            details["provider_request_id"] = exc.request_id
+        if isinstance(exc.details, dict):
+            # Never forward raw model output to clients beyond a short excerpt.
+            details.update({k: v for k, v in exc.details.items() if k != "raw_excerpt"})
+        if isinstance(exc, LLMRateLimitError) and exc.retry_after_s is not None:
+            details["retry_after_s"] = exc.retry_after_s
+        log.warning("llm_error", code=exc.code, provider=exc.provider, model=exc.model)
+        return JSONResponse(
+            _body(request, exc.code, exc.message, details), status_code=exc.http_status
         )
 
     @app.exception_handler(RequestValidationError)

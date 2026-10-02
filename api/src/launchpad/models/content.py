@@ -49,6 +49,9 @@ class ContentItem(UUIDPk, Timestamps, Base):
         ForeignKey("agent_runs.id", ondelete="SET NULL"), index=True
     )
     critique_score: Mapped[int | None] = mapped_column(Integer)
+    # How this item was produced: brief, angle, every draft/critique iteration,
+    # prompt versions and the llm_calls ids behind it.
+    generation: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class ContentAsset(Base):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -26,6 +27,8 @@ class Workspace(UUIDPk, Timestamps, Base):
     locations: Mapped[list[str]] = mapped_column(JSON, default=list)
     website: Mapped[str | None] = mapped_column(String(500))
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Kolkata")
+    # Validated by launchpad.llm.registry.AISettings: per-purpose routes, spend cap.
+    ai_settings: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     brand_kit: Mapped[BrandKit | None] = relationship(
         back_populates="workspace",

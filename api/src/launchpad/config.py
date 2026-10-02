@@ -55,20 +55,26 @@ class Settings(BaseSettings):
     token_encryption_keys: SecretStr = SecretStr("")
 
     # --- LLM ---
+    # Defaults for every purpose; workspaces may override per purpose in Settings → AI.
     llm_provider: LLMProvider | None = None
-    llm_model: str | None = None
-    llm_fast_model: str | None = None
+    llm_model: str | None = None  # writing + planning
+    llm_fast_model: str | None = None  # critique, hashtags, extraction (falls back to llm_model)
     llm_temperature: float = 0.7
     groq_api_key: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
+    llm_max_retries: int = 3
+    log_llm_payloads: bool = False  # store prompts/outputs on llm_calls (off by default)
+    daily_spend_cap_usd: float = 2.00  # per workspace; overridable in workspace settings
     agent_run_token_budget: int = 200_000
     agent_run_cost_budget_usd: float = 1.00
 
-    # --- Embeddings (RAG). Dimension is fixed by the DB schema. ---
+    # --- Embeddings (RAG) ---
     embedding_provider: EmbeddingProvider | None = None
     embedding_model: str | None = None
+    # Must match the pgvector column (migration); changing it requires a migration + re-index.
+    embedding_dim: int = 768
 
     # --- Images ---
     image_provider: ImageProvider | None = None

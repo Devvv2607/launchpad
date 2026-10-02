@@ -7,7 +7,7 @@ from alembic import context
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
-import launchpad.models  # noqa: F401  (registers tables)
+import launchpad.models
 from launchpad.config import get_settings
 from launchpad.db.base import Base
 

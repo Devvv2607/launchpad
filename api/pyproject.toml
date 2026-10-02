@@ -28,6 +28,8 @@ dependencies = [
   "tzdata>=2024.1",
   "boto3>=1.35",
   "pillow>=10.4",
+  "jinja2>=3.1",
+  "anthropic>=1.11",
 ]
 
 [project.optional-dependencies]
@@ -57,8 +59,9 @@ ignore = ["S101", "B008", "RUF012"]
 known-first-party = ["launchpad", "launchpad_worker"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106"]
-"alembic/**" = ["E501"]
+"tests/**" = ["S105", "S106", "E501"]  # fixture payloads read best on one line
+"alembic/**" = ["E501", "F401"]
+"src/launchpad/llm/pricing.py" = ["E501"]  # one row per model reads best
 
 [tool.mypy]
 python_version = "3.11"
@@ -76,3 +79,4 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
+markers = ["live: calls real provider APIs (needs keys + RUN_LIVE_TESTS=1)"]
