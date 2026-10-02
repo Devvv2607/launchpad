@@ -2,19 +2,37 @@
 
 An agentic AI marketing platform for small businesses. It plans campaigns, writes channel-specific content, designs posters and schedules everything. Nothing goes out without a human approving it.
 
-> **Status:** Phase 1 of 7 (scaffold). Auth, workspaces, brand kit basics, the full data model, a durable job worker and CI are in place. The agent, content generation, posters and publishing land in later phases.
+> **Status:** Phase 2 of 7. On top of the Phase 1 scaffold, you now get:
+> - a provider-neutral LLM layer (Gemini, Groq, OpenAI, Anthropic)
+> - brand knowledge (RAG over documents and websites)
+> - a content engine that writes, critiques and revises
+> - the create-content studio
+> - per-workspace AI routing, a spend cap and usage tracking
+> - an evaluation harness
+>
+> The LangGraph agent, posters and publishing come in later phases.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  B[Browser] -->|same-origin /api/v1/*| W[Next.js web<br/>App Router + TanStack Query]
+  B[Browser] -->|same-origin /api/v1/*<br/>JSON + SSE| W[Next.js web]
   W -->|rewrite proxy| A[FastAPI API]
+  subgraph API["api (launchpad package)"]
+    A --> CE[Content engine<br/>write → validate → critique/revise]
+    CE --> CTX[Brand context<br/>kit + voice profile + industry]
+    CTX --> RAG[Retrieval<br/>pgvector cosine + threshold]
+    CE --> LLM[LLMService<br/>routing · spend cap · llm_calls log]
+    RAG --> LLM
+    LLM --> AD{{Adapters}}
+  end
+  AD --> G[Gemini] & Q[Groq] & O[OpenAI] & C[Anthropic]
   A --> P[(Postgres + pgvector)]
-  A -->|enqueue| R[(Redis)]
-  K[ARQ worker] --> R
+  A -->|job row + poke| R[(Redis)]
+  K[ARQ worker<br/>ingest docs · later: publish] --> R
   K -->|claims due jobs<br/>FOR UPDATE SKIP LOCKED| P
-  A --> S[(S3 / MinIO)]
+  K --> LLM
+  A --> S[(S3 / MinIO / local)]
   K --> S
 ```
 
@@ -111,12 +129,55 @@ See [`.env.example`](.env.example) for the full list. The important ones:
 | `REDIS_URL` | ARQ queue and rate limiting |
 | `JWT_SECRET` | Signs session tokens (`AUTH_PROVIDER=local`) |
 | `TOKEN_ENCRYPTION_KEYS` | Fernet keys that encrypt OAuth tokens at rest. Comma-separate them to rotate. |
-| `LLM_PROVIDER`, `LLM_MODEL` | `groq` / `gemini` / `openai` / `anthropic`, plus a current model ID. There are **no defaults**: copy the ID from the provider's docs. |
+| `LLM_PROVIDER`, `LLM_MODEL` | `groq` / `gemini` / `openai` / `anthropic`, plus a current model ID. There are **no code defaults**: `.env.example` lists IDs checked against each provider's docs (with dates). |
+| `LLM_FAST_MODEL` | Cheaper model for review, hashtags and extraction (falls back to `LLM_MODEL`) |
+| `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | Provider keys. A workspace can only route to providers whose key is set. |
+| `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_DIM` | Brand-doc RAG. Defaults to 768-d, which must match the `vector(768)` column. |
+| `RAG_MIN_SCORE` | Retrieved passages below this cosine similarity are dropped (default 0.55) |
+| `DAILY_SPEND_CAP_USD` | Per-workspace daily AI budget (overridable in Settings → AI) |
+| `LLM_MAX_RETRIES` | Retries on 429/5xx/timeouts only (default 3) |
+| `LOG_LLM_PAYLOADS` | Store prompts and outputs on `llm_calls` rows (default `false`) |
 | `CORS_ORIGINS` | Comma-separated allowed origins |
+
+## Evaluation ("I measured my agent")
+
+`api/evals/` runs the real pipeline against **3 fixture businesses** (a Bandra café, a B2B SaaS company, a Koramangala strength studio). Each has a brand kit and a brand document, ingested through the same RAG code. The run covers **10 briefs** across Instagram posts and carousels, LinkedIn, X and email.
+
+```bash
+make eval p=gemini                                    # or: py scripts	asks.py eval gemini
+make eval p=groq a="--model openai/gpt-oss-120b --fast-model openai/gpt-oss-20b"
+make eval p=--fake                                    # offline harness check (also runs in CI)
+```
+
+Each run writes `evals/reports/<date>/<provider>-<time>.md` and `.json`:
+
+| Metric | What it tells you |
+| --- | --- |
+| Schema-valid rate, JSON-repair rate | How often the model returns usable structured output first time |
+| Hard/soft platform violations, draft → final | Whether review actually fixes limits (character counts, hashtags, slides) |
+| Critique score before → after revision | How much the revise loop improves drafts (a self-assessment, used to compare runs) |
+| Latency, cost, failed calls | Taken from the run's own `llm_calls` rows, not estimated |
+
+Reports record the model IDs, the git SHA and each prompt's content-hashed version. Two runs are only comparable when those match.
+
+## Design decisions
+
+- **Platform rules are checked after generation, not just described in the prompt.** Models are unreliable at counting characters and hashtags. The prompt states the limits; deterministic validators then enforce them. A hard violation goes back into the critique/revise loop. If it survives, the draft is flagged as blocked and can't be approved. It is never silently truncated.
+- **There are no silent fallbacks, anywhere.**
+  - Invalid structured output gets exactly one repair retry, with the validation error fed back, then a typed error.
+  - A missing key or model fails with "check `.env`".
+  - Routing never switches provider behind your back.
+  - The UI shows every failure with its cause, a fix hint and a request ID.
+- **Every model call is logged and costed**, with prompt payloads stored only on request. Usage, spend caps and evals all read the same `llm_calls` table. Prices carry their source and date, and unknown prices are reported as unknown rather than guessed.
+- **Prompts are versioned files.** The stored version includes a hash of the prompt file and every shared partial, so any quality change can be traced to a prompt edit.
+- **Retrieval only compares like with like.** Chunks store their embedding model and dimension. Search ignores vectors from a different model, and the UI asks you to re-index instead.
+- **The Anthropic adapter uses the official SDK; Gemini/Groq/OpenAI use raw HTTP.** Each choice keeps that provider's surface well supported. All four share one retry, error and structured-output policy, so they behave the same.
 
 ## Security notes
 
 - `.env` has been git-ignored since the first commit. Only `.env.example` (placeholders) is tracked.
 - Passwords are hashed with argon2. Sessions use an httpOnly, SameSite=Lax cookie on the web origin.
 - Third-party OAuth tokens are encrypted in the database (`EncryptedText` column type, MultiFernet).
-- Request bodies have a size limit, and auth endpoints are rate-limited through Redis. Secret-looking keys and values are redacted from logs. Every response carries an `X-Request-ID`.
+- Request bodies have a size limit; auth, generation and retrieval endpoints are rate-limited through Redis.
+- Uploads are type-sniffed from their content (never trusted from the name or header). Website import blocks private and loopback addresses on every redirect hop (SSRF) and respects robots.txt.
+- Generated email HTML is autoescaped and passed through an allow-list sanitiser (`nh3`); previews render in a sandboxed iframe. Secret-looking keys and values are redacted from logs. Every response carries an `X-Request-ID`.
