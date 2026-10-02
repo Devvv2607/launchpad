@@ -1,6 +1,98 @@
 {
   "components": {
     "schemas": {
+      "AISettingsIn": {
+        "properties": {
+          "daily_spend_cap_usd": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Spend Cap Usd"
+          },
+          "routes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PurposeRoute"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Purpose"
+            },
+            "title": "Routes",
+            "type": "object"
+          }
+        },
+        "title": "AISettingsIn",
+        "type": "object"
+      },
+      "AISettingsOut": {
+        "properties": {
+          "catalog": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogModel"
+            },
+            "title": "Catalog",
+            "type": "array"
+          },
+          "configured_providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Configured Providers",
+            "type": "array"
+          },
+          "daily_spend_cap_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Spend Cap Usd"
+          },
+          "default_daily_cap_usd": {
+            "title": "Default Daily Cap Usd",
+            "type": "number"
+          },
+          "effective": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EffectiveRoute"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Purpose"
+            },
+            "title": "Effective",
+            "type": "object"
+          },
+          "routes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PurposeRoute"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Purpose"
+            },
+            "title": "Routes",
+            "type": "object"
+          }
+        },
+        "required": [
+          "routes",
+          "daily_spend_cap_usd",
+          "default_daily_cap_usd",
+          "effective",
+          "configured_providers",
+          "catalog"
+        ],
+        "title": "AISettingsOut",
+        "type": "object"
+      },
       "AssetKind": {
         "enum": [
           "image",
@@ -556,6 +648,70 @@
         "title": "BrandUrlIn",
         "type": "object"
       },
+      "CatalogModel": {
+        "properties": {
+          "embedding": {
+            "title": "Embedding",
+            "type": "boolean"
+          },
+          "input_per_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Per M"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "output_per_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Per M"
+          },
+          "price_official": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Official"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "structured": {
+            "title": "Structured",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "input_per_m",
+          "output_per_m",
+          "price_official",
+          "structured",
+          "embedding"
+        ],
+        "title": "CatalogModel",
+        "type": "object"
+      },
       "Channel": {
         "enum": [
           "instagram_post",
@@ -749,6 +905,54 @@
         ],
         "title": "DocumentStatus",
         "type": "string"
+      },
+      "EffectiveRoute": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "source"
+        ],
+        "title": "EffectiveRoute",
+        "type": "object"
       },
       "GenerateIn": {
         "properties": {
@@ -1083,6 +1287,43 @@
         "title": "PaletteColorOut",
         "type": "object"
       },
+      "Purpose": {
+        "description": "What a call is for. Workspaces can route each purpose to a different provider/model.",
+        "enum": [
+          "writing",
+          "critique",
+          "planning",
+          "embedding"
+        ],
+        "title": "Purpose",
+        "type": "string"
+      },
+      "PurposeRoute": {
+        "properties": {
+          "model": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "groq",
+              "gemini",
+              "openai",
+              "anthropic"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "PurposeRoute",
+        "type": "object"
+      },
       "RegisterIn": {
         "properties": {
           "email": {
@@ -1248,6 +1489,105 @@
           "access_token"
         ],
         "title": "SessionOut",
+        "type": "object"
+      },
+      "UsageOut": {
+        "properties": {
+          "by_day": {
+            "items": {
+              "$ref": "#/components/schemas/UsageRow"
+            },
+            "title": "By Day",
+            "type": "array"
+          },
+          "by_model": {
+            "items": {
+              "$ref": "#/components/schemas/UsageRow"
+            },
+            "title": "By Model",
+            "type": "array"
+          },
+          "by_task": {
+            "items": {
+              "$ref": "#/components/schemas/UsageRow"
+            },
+            "title": "By Task",
+            "type": "array"
+          },
+          "daily_cap_usd": {
+            "title": "Daily Cap Usd",
+            "type": "number"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "today_spent_usd": {
+            "title": "Today Spent Usd",
+            "type": "number"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/UsageRow"
+          }
+        },
+        "required": [
+          "month",
+          "timezone",
+          "totals",
+          "by_task",
+          "by_model",
+          "by_day",
+          "today_spent_usd",
+          "daily_cap_usd"
+        ],
+        "title": "UsageOut",
+        "type": "object"
+      },
+      "UsageRow": {
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "errors": {
+            "title": "Errors",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "tokens_in": {
+            "title": "Tokens In",
+            "type": "integer"
+          },
+          "tokens_out": {
+            "title": "Tokens Out",
+            "type": "integer"
+          },
+          "unknown_cost_calls": {
+            "title": "Unknown Cost Calls",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "calls",
+          "errors",
+          "tokens_in",
+          "tokens_out",
+          "cost_usd",
+          "unknown_cost_calls"
+        ],
+        "title": "UsageRow",
         "type": "object"
       },
       "UserOut": {
@@ -2057,6 +2397,100 @@
         "summary": "Update Workspace",
         "tags": [
           "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/ai-settings": {
+      "get": {
+        "operationId": "ai_get_ai_settings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AISettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ai Settings",
+        "tags": [
+          "ai"
+        ]
+      },
+      "put": {
+        "operationId": "ai_put_ai_settings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AISettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AISettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Ai Settings",
+        "tags": [
+          "ai"
         ]
       }
     },
@@ -3207,6 +3641,65 @@
         "summary": "Regenerate Variant",
         "tags": [
           "content"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/usage": {
+      "get": {
+        "operationId": "ai_usage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Usage",
+        "tags": [
+          "ai"
         ]
       }
     }

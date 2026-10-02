@@ -143,6 +143,24 @@ export interface paths {
         patch: operations["workspaces_update_workspace"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/ai-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ai Settings */
+        get: operations["ai_get_ai_settings"];
+        /** Put Ai Settings */
+        put: operations["ai_put_ai_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/assets": {
         parameters: {
             query?: never;
@@ -439,10 +457,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Usage */
+        get: operations["ai_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AISettingsIn */
+        AISettingsIn: {
+            /** Daily Spend Cap Usd */
+            daily_spend_cap_usd?: number | null;
+            /** Routes */
+            routes?: {
+                [key: string]: components["schemas"]["PurposeRoute"];
+            };
+        };
+        /** AISettingsOut */
+        AISettingsOut: {
+            /** Catalog */
+            catalog: components["schemas"]["CatalogModel"][];
+            /** Configured Providers */
+            configured_providers: string[];
+            /** Daily Spend Cap Usd */
+            daily_spend_cap_usd: number | null;
+            /** Default Daily Cap Usd */
+            default_daily_cap_usd: number;
+            /** Effective */
+            effective: {
+                [key: string]: components["schemas"]["EffectiveRoute"];
+            };
+            /** Routes */
+            routes: {
+                [key: string]: components["schemas"]["PurposeRoute"];
+            };
+        };
         /**
          * AssetKind
          * @enum {string}
@@ -619,6 +682,23 @@ export interface components {
              */
             url: string;
         };
+        /** CatalogModel */
+        CatalogModel: {
+            /** Embedding */
+            embedding: boolean;
+            /** Input Per M */
+            input_per_m: number | null;
+            /** Model */
+            model: string;
+            /** Output Per M */
+            output_per_m: number | null;
+            /** Price Official */
+            price_official: boolean | null;
+            /** Provider */
+            provider: string;
+            /** Structured */
+            structured: string;
+        };
         /**
          * Channel
          * @enum {string}
@@ -695,6 +775,17 @@ export interface components {
          * @enum {string}
          */
         DocumentStatus: "pending" | "processing" | "ready" | "failed";
+        /** EffectiveRoute */
+        EffectiveRoute: {
+            /** Error */
+            error?: string | null;
+            /** Model */
+            model: string | null;
+            /** Provider */
+            provider: string | null;
+            /** Source */
+            source: string;
+        };
         /** GenerateIn */
         GenerateIn: {
             /** Brief */
@@ -815,6 +906,22 @@ export interface components {
             /** Share */
             share: number;
         };
+        /**
+         * Purpose
+         * @description What a call is for. Workspaces can route each purpose to a different provider/model.
+         * @enum {string}
+         */
+        Purpose: "writing" | "critique" | "planning" | "embedding";
+        /** PurposeRoute */
+        PurposeRoute: {
+            /** Model */
+            model: string;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "groq" | "gemini" | "openai" | "anthropic";
+        };
         /** RegisterIn */
         RegisterIn: {
             /**
@@ -881,6 +988,41 @@ export interface components {
              */
             token_type: string;
             user: components["schemas"]["UserOut"];
+        };
+        /** UsageOut */
+        UsageOut: {
+            /** By Day */
+            by_day: components["schemas"]["UsageRow"][];
+            /** By Model */
+            by_model: components["schemas"]["UsageRow"][];
+            /** By Task */
+            by_task: components["schemas"]["UsageRow"][];
+            /** Daily Cap Usd */
+            daily_cap_usd: number;
+            /** Month */
+            month: string;
+            /** Timezone */
+            timezone: string;
+            /** Today Spent Usd */
+            today_spent_usd: number;
+            totals: components["schemas"]["UsageRow"];
+        };
+        /** UsageRow */
+        UsageRow: {
+            /** Calls */
+            calls: number;
+            /** Cost Usd */
+            cost_usd: number;
+            /** Errors */
+            errors: number;
+            /** Key */
+            key: string;
+            /** Tokens In */
+            tokens_in: number;
+            /** Tokens Out */
+            tokens_out: number;
+            /** Unknown Cost Calls */
+            unknown_cost_calls: number;
         };
         /** UserOut */
         UserOut: {
@@ -1319,6 +1461,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspaceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_get_ai_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_put_ai_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AISettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsOut"];
                 };
             };
             /** @description Validation Error */
@@ -2017,6 +2225,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContentItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_usage: {
+        parameters: {
+            query?: {
+                month?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageOut"];
                 };
             };
             /** @description Validation Error */
