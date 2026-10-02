@@ -149,7 +149,7 @@ export function LogoPanel({
                       on black {c.contrast_black}:1 {c.rating_on_black}
                     </Badge>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap gap-1">
                     {(
                       [
                         ["primary_color", "Primary"],
@@ -160,8 +160,7 @@ export function LogoPanel({
                       <Button
                         key={role}
                         size="xs"
-                        variant="ghost"
-                        className="h-6 px-2 text-xs"
+                        variant="outline"
                         onClick={() => onApply(role, c.hex)}
                       >
                         {label}

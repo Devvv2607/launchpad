@@ -346,7 +346,7 @@ function Swatch({
         <Input
           id={id}
           value={value}
-          placeholder="#1E2250"
+          placeholder="#RRGGBB"
           onChange={onChange}
           className="font-mono uppercase"
         />

@@ -4,6 +4,14 @@ import { Button } from "@/components/ui/button";
 import { describeError, toErrorInfo } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
+// Retrying can't fix these; the message tells the user what to change instead.
+const NOT_RETRYABLE = new Set([
+  "spend_cap_exceeded",
+  "llm_auth",
+  "llm_not_configured",
+  "llm_model_not_found",
+]);
+
 /** Human-readable AI error with a concrete fix hint. Never blank, never generic. */
 export function AIErrorState({
   error,
@@ -46,7 +54,7 @@ export function AIErrorState({
           </p>
         )}
       </div>
-      {onRetry && info.code !== "spend_cap_exceeded" && info.code !== "llm_auth" && (
+      {onRetry && !NOT_RETRYABLE.has(info.code) && (
         <Button size="sm" variant="outline" onClick={onRetry}>
           Try again
         </Button>

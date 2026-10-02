@@ -8,6 +8,8 @@ from typing import Literal
 
 from PIL import Image
 
+MIN_SHARE = 0.03
+
 Rating = Literal["AAA", "AA", "AA large", "fail"]
 
 
@@ -106,7 +108,9 @@ def extract_palette(img: Image.Image, n: int = 5) -> list[PaletteColor]:
         else:
             picked.append((rgb, count))
     picked.sort(key=lambda p: p[1], reverse=True)
-    picked = picked[:n]
+    # Drop specks (anti-aliasing blends between two real colours, stray pixels).
+    counted_total = sum(c for _, c in picked) or 1
+    picked = [p for p in picked if p[1] / counted_total >= MIN_SHARE][:n]
 
     total = sum(c for _, c in picked) or 1
     roles = _assign_roles([rgb for rgb, _ in picked])
