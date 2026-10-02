@@ -78,6 +78,11 @@ async def test_logo_upload_stores_variants_suggests_but_never_overwrites(
 
     kit = (await authed.get(f"/api/v1/workspaces/{ws}/brand-kit")).json()
     assert kit["primary_color"] == "#123456"  # untouched
+
+    # A later partial save (e.g. onboarding colours) keeps the uploaded logo.
+    await authed.put(f"/api/v1/workspaces/{ws}/brand-kit", json={"voice_tone": "Warm"})
+    kit = (await authed.get(f"/api/v1/workspaces/{ws}/brand-kit")).json()
+    assert kit["logo_url"] and kit["voice_tone"] == "Warm"
     assert kit["logo_palette"] and kit["logo_url"]
 
     # Signed URL serves the PNG; a tampered signature is refused.

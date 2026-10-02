@@ -9,6 +9,8 @@ import {
   Moon,
   Palette,
   Plus,
+  SlidersHorizontal,
+  Sparkles,
   Sun,
 } from "lucide-react";
 import Link from "next/link";
@@ -38,7 +40,9 @@ import { rememberWorkspace } from "@/lib/workspace";
 function navFor(wsId: string) {
   return [
     { href: `/w/${wsId}`, label: "Dashboard", icon: LayoutDashboard, exact: true },
+    { href: `/w/${wsId}/create`, label: "Create", icon: Sparkles },
     { href: `/w/${wsId}/brand`, label: "Brand kit", icon: Palette },
+    { href: `/w/${wsId}/settings/ai`, label: "AI settings", icon: SlidersHorizontal },
   ];
 }
 

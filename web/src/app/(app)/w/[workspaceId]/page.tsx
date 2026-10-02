@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useBrandKit, useWorkspace } from "@/lib/api/hooks";
+import { useBrandKit, useContentList, useWorkspace } from "@/lib/api/hooks";
 
 export default function DashboardPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -44,10 +44,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-x-10 gap-y-10 lg:grid-cols-2">
         <Section title="Waiting on you">
-          <EmptyState icon={Inbox} title="Nothing to review">
-            When the agent drafts posts, emails or posters, they land here for your approval.
-            Nothing is published without it.
-          </EmptyState>
+          <Drafts workspaceId={workspaceId} />
         </Section>
         <Section title="Going out next">
           <EmptyState icon={CalendarClock} title="Nothing scheduled">
@@ -76,5 +73,56 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h2 className="mb-4 text-base font-semibold">{title}</h2>
       {children}
     </section>
+  );
+}
+
+const CHANNEL_LABEL: Record<string, string> = {
+  instagram_post: "Instagram",
+  instagram_carousel: "Carousel",
+  linkedin_post: "LinkedIn",
+  x_post: "X",
+  email: "Email",
+  poster: "Poster",
+};
+
+function Drafts({ workspaceId }: { workspaceId: string }) {
+  const drafts = useContentList(workspaceId, ["draft", "in_review"]);
+  if (drafts.error) return <ErrorState error={drafts.error} onRetry={() => drafts.refetch()} />;
+  if (!drafts.data) return <Skeleton className="h-24 w-full" />;
+  if (drafts.data.length === 0)
+    return (
+      <EmptyState
+        icon={Inbox}
+        title="Nothing to review"
+        action={
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/w/${workspaceId}/create`}>Create content</Link>
+          </Button>
+        }
+      >
+        Drafts the agent writes land here for your approval. Nothing is published without it.
+      </EmptyState>
+    );
+  const shown = drafts.data.slice(0, 5);
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">{drafts.data.length}</span> draft
+        {drafts.data.length === 1 ? "" : "s"} waiting. Approval and scheduling arrive with the
+        approval queue.
+      </p>
+      <ul className="divide-y rounded-lg border bg-card">
+        {shown.map((d) => (
+          <li key={d.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+            <span className="size-2 shrink-0 rounded-full bg-marigold" aria-hidden />
+            <span className="w-20 shrink-0 text-xs text-muted-foreground">
+              {CHANNEL_LABEL[d.channel]}
+            </span>
+            <span className="min-w-0 flex-1 truncate">{d.title ?? d.body}</span>
+            {d.blocked && <span className="text-xs text-rose">Over a limit</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

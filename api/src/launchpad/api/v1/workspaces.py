@@ -71,9 +71,11 @@ async def put_brand_kit(body: BrandKitIn, ws: CurrentWorkspace, db: DB) -> Brand
             raise NotFound("Logo asset not found in this workspace.")
     data = body.model_dump(mode="json")
     data["logo_asset_id"] = body.logo_asset_id
-    if "voice_profile" not in body.model_fields_set:
-        # Older clients send the full kit without the profile; don't wipe a generated one.
-        data.pop("voice_profile")
+    # Fields managed by their own flows (logo upload, voice-from-samples) only change when a
+    # client sends them explicitly; a partial kit must never silently wipe them.
+    for managed in ("voice_profile", "logo_asset_id"):
+        if managed not in body.model_fields_set:
+            data.pop(managed)
     for field, value in data.items():
         setattr(kit, field, value)
     await db.commit()

@@ -67,3 +67,27 @@ export async function unwrap<T>(promise: Promise<Result<T>>): Promise<T> {
     env?.details,
   );
 }
+
+/** Multipart upload (openapi-fetch's JSON serializer doesn't cover files). */
+export async function uploadFile<T>(url: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(url, { method: "POST", body: form, credentials: "same-origin" });
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    // Non-JSON response; handled below.
+  }
+  if (response.ok) return body as T;
+  const env = (
+    body as { error?: { code?: string; message?: string; request_id?: string; details?: unknown } }
+  )?.error;
+  throw new ApiError(
+    response.status,
+    env?.code ?? "http_error",
+    env?.message ?? `Upload failed with status ${response.status}`,
+    env?.request_id ?? response.headers.get("x-request-id"),
+    env?.details,
+  );
+}

@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Field } from "@/components/auth-form";
+import { LogoPanel } from "@/components/brand/logo-panel";
 import { Logo } from "@/components/logo";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api, ApiError, unwrap, type Schemas } from "@/lib/api/client";
-import { useCreateWorkspace } from "@/lib/api/hooks";
+import { useBrandKit, useCreateWorkspace } from "@/lib/api/hooks";
 import { INDUSTRY_LABELS, type Industry } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { rememberWorkspace } from "@/lib/workspace";
@@ -28,6 +29,7 @@ type Draft = {
   primary_color: string;
   secondary_color: string;
   voice_tone: string;
+  accent: string;
 };
 
 const EMPTY: Draft = {
@@ -37,9 +39,11 @@ const EMPTY: Draft = {
   locations: "",
   audience: "",
   industry: null,
-  primary_color: "#1E2250",
-  secondary_color: "#F0A020",
+  // Empty on purpose: we suggest colours from the logo rather than imposing defaults.
+  primary_color: "",
+  secondary_color: "",
   voice_tone: "",
+  accent: "",
 };
 
 export default function OnboardingPage() {
@@ -50,6 +54,7 @@ export default function OnboardingPage() {
   const [error, setError] = useState<unknown>(null);
   const [saving, setSaving] = useState(false);
   const create = useCreateWorkspace();
+  const kit = useBrandKit(workspaceId ?? "", { enabled: Boolean(workspaceId) });
 
   const set = (k: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setDraft((d) => ({ ...d, [k]: e.target.value }));
@@ -61,33 +66,64 @@ export default function OnboardingPage() {
   const hasUnplacedError =
     error !== null && Object.keys(fieldErrors).every((k) => !inlineFields.includes(k));
 
+  function workspaceBody(): Schemas["WorkspaceCreate"] {
+    return {
+      name: draft.name,
+      industry: draft.industry as Industry,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
+      description: draft.description || null,
+      audience: draft.audience || null,
+      website: draft.website || null,
+      locations: draft.locations
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    };
+  }
+
+  /** Create the workspace when leaving the industry step (or update it after going Back). */
   async function saveWorkspace() {
     if (!draft.industry) return;
     setSaving(true);
     setError(null);
     try {
-      const body: Schemas["WorkspaceCreate"] = {
-        name: draft.name,
-        industry: draft.industry,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
-        description: draft.description || null,
-        audience: draft.audience || null,
-        website: draft.website || null,
-        locations: draft.locations
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-      };
-      // Re-running this step after a failed brand-kit save must not create a second workspace.
-      const id = workspaceId ?? (await create.mutateAsync(body)).id;
-      setWorkspaceId(id);
-      rememberWorkspace(id);
+      const body = workspaceBody();
+      let id = workspaceId;
+      if (id) {
+        await unwrap(
+          api.PATCH("/api/v1/workspaces/{workspace_id}", {
+            params: { path: { workspace_id: id } },
+            body,
+          }),
+        );
+      } else {
+        id = (await create.mutateAsync(body)).id;
+        setWorkspaceId(id);
+        rememberWorkspace(id);
+      }
+      setStep(2);
+    } catch (e) {
+      setError(e);
+      const fe = e instanceof ApiError ? e.fieldErrors() : {};
+      if (fe.name || fe.website || fe.locations || fe.audience) setStep(0);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveBrand() {
+    if (!workspaceId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      // Partial save: the logo (uploaded separately) is left as it is.
       await unwrap(
         api.PUT("/api/v1/workspaces/{workspace_id}/brand-kit", {
-          params: { path: { workspace_id: id } },
+          params: { path: { workspace_id: workspaceId } },
           body: {
-            primary_color: draft.primary_color,
-            secondary_color: draft.secondary_color,
+            primary_color: draft.primary_color || null,
+            secondary_color: draft.secondary_color || null,
+            accent_colors: draft.accent ? [draft.accent] : [],
             voice_tone: draft.voice_tone || null,
           },
         }),
@@ -95,8 +131,6 @@ export default function OnboardingPage() {
       setStep(3);
     } catch (e) {
       setError(e);
-      const fe = e instanceof ApiError ? e.fieldErrors() : {};
-      if (fe.name || fe.website || fe.locations || fe.audience) setStep(0);
     } finally {
       setSaving(false);
     }
@@ -227,8 +261,30 @@ export default function OnboardingPage() {
           <section className="space-y-6">
             <StepTitle
               title="Set your brand basics"
-              body="Colours go on posters and emails; the voice guides every caption. You can refine all of this later in the brand kit."
+              body="Upload your logo and we'll suggest colours from it. You can refine all of this later in the brand kit."
             />
+            {workspaceId && (
+              <LogoPanel
+                workspaceId={workspaceId}
+                logoUrl={kit.data?.logo_url}
+                palette={kit.data?.logo_palette ?? []}
+                hasColors={Boolean(draft.primary_color || draft.secondary_color)}
+                onApply={(role, hex) =>
+                  setDraft((d) =>
+                    role === "accent" ? { ...d, accent: hex } : { ...d, [role]: hex },
+                  )
+                }
+                onApplyAll={(palette) => {
+                  const by = (r: string) => palette.find((p) => p.role === r)?.hex;
+                  setDraft((d) => ({
+                    ...d,
+                    primary_color: by("primary") ?? d.primary_color,
+                    secondary_color: by("secondary") ?? d.secondary_color,
+                    accent: by("accent") ?? d.accent,
+                  }));
+                }}
+              />
+            )}
             <div className="grid gap-6 sm:grid-cols-2">
               <ColorField
                 label="Primary colour"
@@ -292,14 +348,23 @@ export default function OnboardingPage() {
           ) : (
             <span />
           )}
-          {step < 2 && (
-            <Button onClick={() => setStep((s) => s + 1)} disabled={!canContinue}>
+          {step === 0 && (
+            <Button onClick={() => setStep(1)} disabled={!canContinue}>
               Continue
             </Button>
           )}
+          {step === 1 && (
+            <Button onClick={saveWorkspace} disabled={!canContinue || saving}>
+              {saving
+                ? "Creating workspace…"
+                : workspaceId
+                  ? "Save and continue"
+                  : "Create workspace"}
+            </Button>
+          )}
           {step === 2 && (
-            <Button onClick={saveWorkspace} disabled={saving}>
-              {saving ? "Creating workspace…" : "Create workspace"}
+            <Button onClick={saveBrand} disabled={saving}>
+              {saving ? "Saving…" : "Save and continue"}
             </Button>
           )}
           {step === 3 && workspaceId && (
@@ -336,13 +401,14 @@ function ColorField({
         <input
           type="color"
           aria-label={`${label} picker`}
-          value={value}
+          value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000"}
           onChange={(e) => onChange(e.target.value.toUpperCase())}
           className="size-10 cursor-pointer rounded-md border bg-transparent p-1"
         />
         <Input
           id={id}
           value={value}
+          placeholder="#RRGGBB"
           onChange={(e) => onChange(e.target.value)}
           className="font-mono uppercase"
         />
