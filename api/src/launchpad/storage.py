@@ -79,8 +79,8 @@ class LocalStorage:
 
     async def signed_url(self, key: str, expires_s: int = 3600) -> str:
         exp = int(time.time()) + expires_s
-        base = get_settings().api_public_url.rstrip("/")
-        return f"{base}/api/v1/files/{quote(key)}?exp={exp}&sig={_sign(key, exp)}"
+        # Relative: the browser fetches it through the web origin's /api/v1 proxy.
+        return f"/api/v1/files/{quote(key)}?exp={exp}&sig={_sign(key, exp)}"
 
     async def check(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,144 @@
 {
   "components": {
     "schemas": {
+      "AssetKind": {
+        "enum": [
+          "image",
+          "poster",
+          "logo",
+          "upload"
+        ],
+        "title": "AssetKind",
+        "type": "string"
+      },
+      "AssetOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AssetKind"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
+            "type": "object"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AssetSource"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "source",
+          "mime_type",
+          "width",
+          "height",
+          "size_bytes",
+          "variant",
+          "parent_id",
+          "meta",
+          "created_at",
+          "url"
+        ],
+        "title": "AssetOut",
+        "type": "object"
+      },
+      "AssetSource": {
+        "enum": [
+          "generated",
+          "uploaded",
+          "rendered"
+        ],
+        "title": "AssetSource",
+        "type": "string"
+      },
+      "Body_assets_upload_brand_logo": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_assets_upload_brand_logo",
+        "type": "object"
+      },
       "BrandKitIn": {
         "properties": {
           "accent_colors": {
@@ -93,6 +231,16 @@
             ],
             "title": "Secondary Color"
           },
+          "voice_profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoiceProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "voice_tone": {
             "anyOf": [
               {
@@ -176,6 +324,24 @@
             ],
             "title": "Logo Asset Id"
           },
+          "logo_palette": {
+            "items": {
+              "$ref": "#/components/schemas/PaletteColorOut"
+            },
+            "title": "Logo Palette",
+            "type": "array"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
           "primary_color": {
             "anyOf": [
               {
@@ -210,6 +376,16 @@
             "format": "date-time",
             "title": "Updated At",
             "type": "string"
+          },
+          "voice_profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoiceProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "voice_tone": {
             "anyOf": [
@@ -322,6 +498,35 @@
         "title": "LoginIn",
         "type": "object"
       },
+      "LogoUploadOut": {
+        "properties": {
+          "has_existing_colors": {
+            "title": "Has Existing Colors",
+            "type": "boolean"
+          },
+          "logo": {
+            "$ref": "#/components/schemas/AssetOut"
+          },
+          "palette": {
+            "items": {
+              "$ref": "#/components/schemas/PaletteColorOut"
+            },
+            "title": "Palette",
+            "type": "array"
+          },
+          "thumbnail": {
+            "$ref": "#/components/schemas/AssetOut"
+          }
+        },
+        "required": [
+          "logo",
+          "thumbnail",
+          "palette",
+          "has_existing_colors"
+        ],
+        "title": "LogoUploadOut",
+        "type": "object"
+      },
       "MetaOut": {
         "properties": {
           "channels": {
@@ -344,6 +549,76 @@
           "channels"
         ],
         "title": "MetaOut",
+        "type": "object"
+      },
+      "PaletteColorOut": {
+        "properties": {
+          "best_text": {
+            "enum": [
+              "#FFFFFF",
+              "#000000"
+            ],
+            "title": "Best Text",
+            "type": "string"
+          },
+          "contrast_black": {
+            "title": "Contrast Black",
+            "type": "number"
+          },
+          "contrast_white": {
+            "title": "Contrast White",
+            "type": "number"
+          },
+          "hex": {
+            "title": "Hex",
+            "type": "string"
+          },
+          "rating_on_black": {
+            "enum": [
+              "AAA",
+              "AA",
+              "AA large",
+              "fail"
+            ],
+            "title": "Rating On Black",
+            "type": "string"
+          },
+          "rating_on_white": {
+            "enum": [
+              "AAA",
+              "AA",
+              "AA large",
+              "fail"
+            ],
+            "title": "Rating On White",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "primary",
+              "secondary",
+              "accent",
+              "extra"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "hex",
+          "share",
+          "role",
+          "contrast_white",
+          "contrast_black",
+          "rating_on_white",
+          "rating_on_black",
+          "best_text"
+        ],
+        "title": "PaletteColorOut",
         "type": "object"
       },
       "RegisterIn": {
@@ -476,6 +751,87 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VoiceProfile": {
+        "description": "Structured brand voice, produced from sample posts by the LLM and editable by users.",
+        "properties": {
+          "do_words": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Do Words",
+            "type": "array"
+          },
+          "dont_words": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Dont Words",
+            "type": "array"
+          },
+          "emoji_usage": {
+            "enum": [
+              "none",
+              "rare",
+              "moderate",
+              "frequent"
+            ],
+            "title": "Emoji Usage",
+            "type": "string"
+          },
+          "formality": {
+            "description": "1 = very casual, 5 = very formal",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Formality",
+            "type": "integer"
+          },
+          "sentence_length": {
+            "enum": [
+              "short",
+              "medium",
+              "long",
+              "mixed"
+            ],
+            "title": "Sentence Length",
+            "type": "string"
+          },
+          "signature_phrases": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Signature Phrases",
+            "type": "array"
+          },
+          "summary": {
+            "description": "Two-sentence description of the voice.",
+            "maxLength": 600,
+            "minLength": 10,
+            "title": "Summary",
+            "type": "string"
+          },
+          "tone_adjectives": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 3,
+            "title": "Tone Adjectives",
+            "type": "array"
+          }
+        },
+        "required": [
+          "summary",
+          "tone_adjectives",
+          "formality",
+          "sentence_length",
+          "emoji_usage"
+        ],
+        "title": "VoiceProfile",
         "type": "object"
       },
       "WorkspaceCreate": {
@@ -1084,6 +1440,136 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/assets": {
+      "get": {
+        "operationId": "assets_list_assets",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AssetKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_variants",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Variants",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AssetOut"
+                  },
+                  "title": "Response Assets List Assets",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Assets",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/assets/{asset_id}": {
+      "delete": {
+        "operationId": "assets_delete_asset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Asset",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/brand-kit": {
       "get": {
         "operationId": "workspaces_get_brand_kit",
@@ -1175,6 +1661,59 @@
         "summary": "Put Brand Kit",
         "tags": [
           "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/brand-kit/logo": {
+      "post": {
+        "operationId": "assets_upload_brand_logo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_assets_upload_brand_logo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoUploadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Brand Logo",
+        "tags": [
+          "assets"
         ]
       }
     }

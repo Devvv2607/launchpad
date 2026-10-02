@@ -143,6 +143,40 @@ export interface paths {
         patch: operations["workspaces_update_workspace"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Assets */
+        get: operations["assets_list_assets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/assets/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Asset */
+        delete: operations["assets_delete_asset"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/brand-kit": {
         parameters: {
             query?: never;
@@ -161,10 +195,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/brand-kit/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Brand Logo */
+        post: operations["assets_upload_brand_logo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AssetKind
+         * @enum {string}
+         */
+        AssetKind: "image" | "poster" | "logo" | "upload";
+        /** AssetOut */
+        AssetOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Height */
+            height: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["AssetKind"];
+            /** Meta */
+            meta: {
+                [key: string]: unknown;
+            };
+            /** Mime Type */
+            mime_type: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Size Bytes */
+            size_bytes: number | null;
+            source: components["schemas"]["AssetSource"];
+            /** Url */
+            url: string;
+            /** Variant */
+            variant: string | null;
+            /** Width */
+            width: number | null;
+        };
+        /**
+         * AssetSource
+         * @enum {string}
+         */
+        AssetSource: "generated" | "uploaded" | "rendered";
+        /** Body_assets_upload_brand_logo */
+        Body_assets_upload_brand_logo: {
+            /** File */
+            file: string;
+        };
         /** BrandKitIn */
         BrandKitIn: {
             /** Accent Colors */
@@ -185,6 +284,7 @@ export interface components {
             sample_posts?: string[];
             /** Secondary Color */
             secondary_color?: string | null;
+            voice_profile?: components["schemas"]["VoiceProfile"] | null;
             /** Voice Tone */
             voice_tone?: string | null;
         };
@@ -207,6 +307,10 @@ export interface components {
             id: string;
             /** Logo Asset Id */
             logo_asset_id?: string | null;
+            /** Logo Palette */
+            logo_palette?: components["schemas"]["PaletteColorOut"][];
+            /** Logo Url */
+            logo_url?: string | null;
             /** Primary Color */
             primary_color?: string | null;
             /** Sample Posts */
@@ -218,6 +322,7 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            voice_profile?: components["schemas"]["VoiceProfile"] | null;
             /** Voice Tone */
             voice_tone?: string | null;
             /**
@@ -258,12 +363,52 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** LogoUploadOut */
+        LogoUploadOut: {
+            /** Has Existing Colors */
+            has_existing_colors: boolean;
+            logo: components["schemas"]["AssetOut"];
+            /** Palette */
+            palette: components["schemas"]["PaletteColorOut"][];
+            thumbnail: components["schemas"]["AssetOut"];
+        };
         /** MetaOut */
         MetaOut: {
             /** Channels */
             channels: components["schemas"]["Channel"][];
             /** Industries */
             industries: components["schemas"]["Industry"][];
+        };
+        /** PaletteColorOut */
+        PaletteColorOut: {
+            /**
+             * Best Text
+             * @enum {string}
+             */
+            best_text: "#FFFFFF" | "#000000";
+            /** Contrast Black */
+            contrast_black: number;
+            /** Contrast White */
+            contrast_white: number;
+            /** Hex */
+            hex: string;
+            /**
+             * Rating On Black
+             * @enum {string}
+             */
+            rating_on_black: "AAA" | "AA" | "AA large" | "fail";
+            /**
+             * Rating On White
+             * @enum {string}
+             */
+            rating_on_white: "AAA" | "AA" | "AA large" | "fail";
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "primary" | "secondary" | "accent" | "extra";
+            /** Share */
+            share: number;
         };
         /** RegisterIn */
         RegisterIn: {
@@ -317,6 +462,40 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VoiceProfile
+         * @description Structured brand voice, produced from sample posts by the LLM and editable by users.
+         */
+        VoiceProfile: {
+            /** Do Words */
+            do_words?: string[];
+            /** Dont Words */
+            dont_words?: string[];
+            /**
+             * Emoji Usage
+             * @enum {string}
+             */
+            emoji_usage: "none" | "rare" | "moderate" | "frequent";
+            /**
+             * Formality
+             * @description 1 = very casual, 5 = very formal
+             */
+            formality: number;
+            /**
+             * Sentence Length
+             * @enum {string}
+             */
+            sentence_length: "short" | "medium" | "long" | "mixed";
+            /** Signature Phrases */
+            signature_phrases?: string[];
+            /**
+             * Summary
+             * @description Two-sentence description of the voice.
+             */
+            summary: string;
+            /** Tone Adjectives */
+            tone_adjectives: string[];
         };
         /** WorkspaceCreate */
         WorkspaceCreate: {
@@ -685,6 +864,71 @@ export interface operations {
             };
         };
     };
+    assets_list_assets: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["AssetKind"] | null;
+                include_variants?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assets_delete_asset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     workspaces_get_brand_kit: {
         parameters: {
             query?: never;
@@ -738,6 +982,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BrandKitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assets_upload_brand_logo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_assets_upload_brand_logo"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoUploadOut"];
                 };
             };
             /** @description Validation Error */

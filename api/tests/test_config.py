@@ -7,18 +7,25 @@ import pytest
 from launchpad.config import Settings
 
 
-def test_fresh_env_example_loads(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """A verbatim copy of .env.example (blank providers) must load, not crash."""
+def test_env_example_loads(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A verbatim copy of .env.example must load (it ships blank keys and providers)."""
     example = Path(__file__).resolve().parents[2] / ".env.example"
     (tmp_path / ".env").write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.chdir(tmp_path)
+    s = Settings(_env_file=(tmp_path / ".env",))  # type: ignore[call-arg]
+    assert s.embedding_dim == 768
+    assert s.gemini_api_key is None  # blank in the example
+
+
+def test_blank_values_mean_unset(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    env = tmp_path / ".env"
+    blank = ("LLM_PROVIDER", "EMBEDDING_PROVIDER", "IMAGE_PROVIDER", "LLM_MODEL")
+    env.write_text("".join(f"{var}=\n" for var in blank), encoding="utf-8")
     for var in ("LLM_PROVIDER", "EMBEDDING_PROVIDER", "IMAGE_PROVIDER", "LLM_MODEL"):
         monkeypatch.delenv(var, raising=False)
-    s = Settings(_env_file=(tmp_path / ".env",))  # type: ignore[call-arg]
-    assert s.llm_provider is None
-    assert s.embedding_provider is None
-    assert s.image_provider is None
-    assert s.llm_model is None
+    s = Settings(_env_file=(env,))  # type: ignore[call-arg]
+    assert s.llm_provider is None and s.embedding_provider is None
+    assert s.image_provider is None and s.llm_model is None
 
 
 def test_cors_origins_accepts_comma_list(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -4,7 +4,8 @@ from fastapi import APIRouter, status
 from sqlalchemy import select
 
 from launchpad.api.deps import DB, CurrentUser, CurrentWorkspace
-from launchpad.models import BrandKit, Workspace
+from launchpad.api.errors import NotFound
+from launchpad.models import Asset, BrandKit, Workspace
 from launchpad.schemas.workspace import (
     BrandKitIn,
     BrandKitOut,
@@ -12,6 +13,7 @@ from launchpad.schemas.workspace import (
     WorkspaceOut,
     WorkspaceUpdate,
 )
+from launchpad.storage import get_storage
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -56,18 +58,36 @@ async def delete_workspace(ws: CurrentWorkspace, db: DB) -> None:
 
 
 @router.get("/{workspace_id}/brand-kit", response_model=BrandKitOut)
-async def get_brand_kit(ws: CurrentWorkspace, db: DB) -> BrandKit:
-    return await _brand_kit(ws, db)
+async def get_brand_kit(ws: CurrentWorkspace, db: DB) -> BrandKitOut:
+    return await brand_kit_out(db, await _brand_kit(ws, db))
 
 
 @router.put("/{workspace_id}/brand-kit", response_model=BrandKitOut)
-async def put_brand_kit(body: BrandKitIn, ws: CurrentWorkspace, db: DB) -> BrandKit:
+async def put_brand_kit(body: BrandKitIn, ws: CurrentWorkspace, db: DB) -> BrandKitOut:
     kit = await _brand_kit(ws, db)
-    for field, value in body.model_dump().items():
+    if body.logo_asset_id is not None:
+        logo = await db.get(Asset, body.logo_asset_id)
+        if logo is None or logo.workspace_id != ws.id:
+            raise NotFound("Logo asset not found in this workspace.")
+    data = body.model_dump(mode="json")
+    data["logo_asset_id"] = body.logo_asset_id
+    if "voice_profile" not in body.model_fields_set:
+        # Older clients send the full kit without the profile; don't wipe a generated one.
+        data.pop("voice_profile")
+    for field, value in data.items():
         setattr(kit, field, value)
     await db.commit()
     await db.refresh(kit)
-    return kit
+    return await brand_kit_out(db, kit)
+
+
+async def brand_kit_out(db: DB, kit: BrandKit) -> BrandKitOut:
+    out = BrandKitOut.model_validate(kit)
+    if kit.logo_asset_id:
+        logo = await db.get(Asset, kit.logo_asset_id)
+        if logo is not None:
+            out.logo_url = await get_storage().signed_url(logo.storage_key)
+    return out
 
 
 async def _brand_kit(ws: Workspace, db: DB) -> BrandKit:

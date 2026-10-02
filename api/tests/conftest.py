@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from collections.abc import AsyncIterator
 
 from cryptography.fernet import Fernet
@@ -13,6 +14,8 @@ os.environ["DATABASE_URL"] = os.environ.get(
 os.environ.setdefault("JWT_SECRET", "test-secret-" + "x" * 32)
 os.environ.setdefault("TOKEN_ENCRYPTION_KEYS", Fernet.generate_key().decode())
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
+os.environ["STORAGE_BACKEND"] = "local"
+os.environ["STORAGE_LOCAL_DIR"] = os.path.join(tempfile.gettempdir(), "launchpad-test-storage")
 
 import pytest
 from alembic import command

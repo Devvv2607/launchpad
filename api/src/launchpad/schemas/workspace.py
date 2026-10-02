@@ -8,6 +8,8 @@ from zoneinfo import available_timezones
 from pydantic import Field, HttpUrl, field_validator
 
 from launchpad.domain.enums import Industry
+from launchpad.schemas.assets import PaletteColorOut
+from launchpad.schemas.brand import VoiceProfile
 from launchpad.schemas.common import Schema
 
 _HEX = re.compile(r"^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
@@ -74,6 +76,7 @@ class BrandKitIn(Schema):
     do_words: list[str] = Field(default_factory=list, max_length=50)
     dont_words: list[str] = Field(default_factory=list, max_length=50)
     sample_posts: list[str] = Field(default_factory=list, max_length=10)
+    voice_profile: VoiceProfile | None = None
 
     @field_validator("primary_color", "secondary_color")
     @classmethod
@@ -90,3 +93,6 @@ class BrandKitOut(BrandKitIn):
     id: uuid.UUID
     workspace_id: uuid.UUID
     updated_at: datetime
+    logo_url: str | None = None
+    logo_palette: list[PaletteColorOut] = Field(default_factory=list)
+    voice_profile: VoiceProfile | None = None
