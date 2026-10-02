@@ -33,6 +33,7 @@ dependencies = [
   "pypdf>=5.0",
   "python-docx>=1.1",
   "beautifulsoup4>=4.12",
+  "nh3>=0.2.17",
 ]
 
 [project.optional-dependencies]
@@ -65,6 +66,9 @@ known-first-party = ["launchpad", "launchpad_worker", "tests"]
 "tests/**" = ["S105", "S106", "E501"]  # fixture payloads read best on one line
 "alembic/**" = ["E501", "F401"]
 "src/launchpad/llm/pricing.py" = ["E501"]  # one row per model reads best
+# Prompt guidance + user-facing rule messages: full sentences read better unwrapped.
+"src/launchpad/content/engine.py" = ["E501"]
+"src/launchpad/content/platform_rules.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

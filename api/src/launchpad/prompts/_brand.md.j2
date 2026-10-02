@@ -1,0 +1,29 @@
+{# Shared brand block, included by content prompts. Not a standalone prompt (no front matter). #}
+## The business
+- Name: {{ business_name }}
+- Industry: {{ industry }} — emphasise {{ industry_focus }}.
+{% if description %}- What they sell: {{ description }}
+{% endif %}{% if audience %}- Audience: {{ audience }}
+{% endif %}{% if locations %}- Location: {{ locations | join(", ") }}
+{% endif %}{% if website %}- Website: {{ website }}
+{% endif %}
+## Brand voice
+{% if voice_profile %}- {{ voice_profile.summary }}
+- Tone: {{ voice_profile.tone_adjectives | join(", ") }}; formality {{ voice_profile.formality }}/5; {{ voice_profile.sentence_length }} sentences; emoji: {{ voice_profile.emoji_usage }}.
+{% if voice_profile.signature_phrases %}- Signature phrases (use sparingly): {{ voice_profile.signature_phrases | join(" | ") }}
+{% endif %}{% elif voice_tone %}- {{ voice_tone }}
+{% else %}- No voice defined yet: write warmly and plainly, like a local business owner.
+{% endif %}{% if do_words %}- Words they use: {{ do_words | join(", ") }}
+{% endif %}{% if dont_words %}- NEVER use: {{ dont_words | join(", ") }}
+{% endif %}{% if sample_posts %}
+Past posts that sound like them:
+{% for p in sample_posts %}> {{ p | replace("\n", " ") }}
+{% endfor %}{% endif %}
+{% if industry_avoid %}## Compliance
+- {{ industry_avoid }}
+{% endif %}
+## Facts from the brand's own documents
+{% if knowledge %}Only use facts from here (cite nothing in the output; just don't contradict or embellish):
+{% for k in knowledge %}[{{ k.n }}] ({{ k.source }}{% if k.heading %} › {{ k.heading }}{% endif %}) {{ k.text | replace("\n", " ") }}
+{% endfor %}{% else %}None provided. Do NOT invent prices, dates, addresses, menu items, offers or statistics — keep claims general.
+{% endif %}

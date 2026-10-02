@@ -568,6 +568,178 @@
         "title": "Channel",
         "type": "string"
       },
+      "ContentEditIn": {
+        "description": "Inline edit: send the full structured content for the item's channel.",
+        "properties": {
+          "content": {
+            "additionalProperties": true,
+            "title": "Content",
+            "type": "object"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "ContentEditIn",
+        "type": "object"
+      },
+      "ContentItemOut": {
+        "properties": {
+          "blocked": {
+            "default": false,
+            "title": "Blocked",
+            "type": "boolean"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "campaign_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Id"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "critique_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Critique Score"
+          },
+          "generation": {
+            "additionalProperties": true,
+            "title": "Generation",
+            "type": "object"
+          },
+          "hashtags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hashtags",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ContentStatus"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "variant_group": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant Group"
+          },
+          "variant_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant Label"
+          },
+          "violations": {
+            "items": {
+              "$ref": "#/components/schemas/ViolationOut"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "channel",
+          "title",
+          "body",
+          "payload",
+          "hashtags",
+          "variant_group",
+          "variant_label",
+          "status",
+          "critique_score",
+          "generation",
+          "campaign_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ContentItemOut",
+        "type": "object"
+      },
+      "ContentStatus": {
+        "enum": [
+          "draft",
+          "in_review",
+          "approved",
+          "scheduled",
+          "published",
+          "failed"
+        ],
+        "title": "ContentStatus",
+        "type": "string"
+      },
       "DocumentStatus": {
         "enum": [
           "pending",
@@ -577,6 +749,49 @@
         ],
         "title": "DocumentStatus",
         "type": "string"
+      },
+      "GenerateIn": {
+        "properties": {
+          "brief": {
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Brief",
+            "type": "string"
+          },
+          "campaign_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Id"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "critique": {
+            "default": true,
+            "title": "Critique",
+            "type": "boolean"
+          },
+          "n_variants": {
+            "default": 3,
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "N Variants",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channel",
+          "brief"
+        ],
+        "title": "GenerateIn",
+        "type": "object"
       },
       "HTTPValidationError": {
         "properties": {
@@ -589,6 +804,65 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HashtagsIn": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "text": {
+            "maxLength": 5000,
+            "minLength": 3,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "text"
+        ],
+        "title": "HashtagsIn",
+        "type": "object"
+      },
+      "HashtagsOut": {
+        "properties": {
+          "branded": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Branded",
+            "type": "array"
+          },
+          "broad": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Broad",
+            "type": "array"
+          },
+          "local": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Local",
+            "type": "array"
+          },
+          "niche": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Niche",
+            "type": "array"
+          }
+        },
+        "required": [
+          "broad",
+          "niche",
+          "branded",
+          "local"
+        ],
+        "title": "HashtagsOut",
         "type": "object"
       },
       "HealthOut": {
@@ -1051,6 +1325,34 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "ViolationOut": {
+        "properties": {
+          "field": {
+            "default": "",
+            "title": "Field",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "severity",
+          "message"
+        ],
+        "title": "ViolationOut",
         "type": "object"
       },
       "VoiceFromSamplesIn": {
@@ -2478,6 +2780,433 @@
         "summary": "Voice From Samples",
         "tags": [
           "brand"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/content": {
+      "get": {
+        "operationId": "content_list_content",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ContentStatus"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Channel"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channel"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variant_group",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variant Group"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ContentItemOut"
+                  },
+                  "title": "Response Content List Content",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Content",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/content/generate": {
+      "post": {
+        "description": "Streams progress as SSE: `step`, `variant`, `item`, then `done` or `error`.",
+        "operationId": "content_generate_content",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {}
+            },
+            "description": "Server-sent events"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Content",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/content/hashtags": {
+      "post": {
+        "operationId": "content_hashtags",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HashtagsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HashtagsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hashtags",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/content/{item_id}": {
+      "delete": {
+        "operationId": "content_delete_content",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Content",
+        "tags": [
+          "content"
+        ]
+      },
+      "get": {
+        "operationId": "content_get_content",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Content",
+        "tags": [
+          "content"
+        ]
+      },
+      "patch": {
+        "operationId": "content_edit_content",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentEditIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Content",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/content/{item_id}/regenerate": {
+      "post": {
+        "operationId": "content_regenerate_variant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Regenerate Variant",
+        "tags": [
+          "content"
         ]
       }
     }

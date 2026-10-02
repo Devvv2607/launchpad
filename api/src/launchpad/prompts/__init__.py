@@ -14,19 +14,21 @@ Bump the version whenever the text changes.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, StrictUndefined
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 _DIR = Path(__file__).parent
 _FRONT = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 _SECTION = re.compile(r"^<<<(system|user)>>>\s*$", re.M)
 # Prompts are plain text sent to an LLM, never rendered as HTML, so autoescaping is off.
 _env = Environment(
+    loader=FileSystemLoader(str(_DIR)),  # enables {% include "_brand.md.j2" %}
     undefined=StrictUndefined,
     autoescape=False,  # noqa: S701
     trim_blocks=True,
@@ -75,8 +77,17 @@ def load_prompt(name: str) -> Prompt:
         raise ValueError(f"{path.name}: front matter needs matching 'name' and a 'version'")
     if "system" not in sections or "user" not in sections:
         raise ValueError(f"{path.name}: needs <<<system>>> and <<<user>>> sections")
-    return Prompt(name, meta["version"], sections["system"], sections["user"])
+    # Stored version = declared version + hash of this file and all shared partials, so any
+    # edit is traceable on llm_calls even if someone forgets to bump the declared version.
+    partials = "".join(p.read_text(encoding="utf-8") for p in sorted(_DIR.glob("_*.md.j2")))
+    digest = hashlib.sha256((text + partials).encode()).hexdigest()[:7]
+    version = f"{meta['version']}#{digest}"
+    return Prompt(name, version, sections["system"], sections["user"])
 
 
 def all_prompts() -> list[Prompt]:
-    return [load_prompt(p.name.removesuffix(".md.j2")) for p in sorted(_DIR.glob("*.md.j2"))]
+    return [
+        load_prompt(p.name.removesuffix(".md.j2"))
+        for p in sorted(_DIR.glob("*.md.j2"))
+        if not p.name.startswith("_")  # partials
+    ]
