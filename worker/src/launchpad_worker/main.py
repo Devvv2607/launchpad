@@ -11,8 +11,11 @@ from arq.connections import RedisSettings
 
 from launchpad.config import get_settings
 from launchpad.db.session import get_engine
+from launchpad.jobs.handlers import HANDLERS as SHARED_HANDLERS
 from launchpad.logging import configure_logging
 from launchpad_worker.jobs import HANDLERS, sweep
+
+HANDLERS.update(SHARED_HANDLERS)
 
 log = structlog.get_logger("launchpad.worker")
 

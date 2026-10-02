@@ -177,6 +177,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/brand-docs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Brand Docs */
+        get: operations["brand_list_brand_docs"];
+        put?: never;
+        /** Upload Brand Doc */
+        post: operations["brand_upload_brand_doc"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/brand-docs/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Retrieval */
+        post: operations["brand_test_retrieval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/brand-docs/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Brand Url */
+        post: operations["brand_import_brand_url"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/brand-docs/{doc_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Brand Doc */
+        delete: operations["brand_delete_brand_doc"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/brand-docs/{doc_id}/reindex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reindex Brand Doc */
+        post: operations["brand_reindex_brand_doc"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/brand-index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Brand Index Status */
+        get: operations["brand_brand_index_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/brand-index/reindex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reindex Stale */
+        post: operations["brand_reindex_stale"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/brand-kit": {
         parameters: {
             query?: never;
@@ -206,6 +326,23 @@ export interface paths {
         put?: never;
         /** Upload Brand Logo */
         post: operations["assets_upload_brand_logo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/brand-kit/voice-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Voice From Samples */
+        post: operations["brand_voice_from_samples"];
         delete?: never;
         options?: never;
         head?: never;
@@ -263,6 +400,54 @@ export interface components {
         Body_assets_upload_brand_logo: {
             /** File */
             file: string;
+        };
+        /** Body_brand_upload_brand_doc */
+        Body_brand_upload_brand_doc: {
+            /** File */
+            file: string;
+        };
+        /** BrandDocumentOut */
+        BrandDocumentOut: {
+            /** Chunk Count */
+            chunk_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Embedding Model */
+            embedding_model?: string | null;
+            /** Error */
+            error: string | null;
+            /** Filename */
+            filename: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Mime Type */
+            mime_type: string;
+            /**
+             * Needs Reindex
+             * @default false
+             */
+            needs_reindex: boolean;
+            /** Size Bytes */
+            size_bytes: number | null;
+            /**
+             * Source Type
+             * @enum {string}
+             */
+            source_type: "file" | "url";
+            /** Source Url */
+            source_url: string | null;
+            status: components["schemas"]["DocumentStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** BrandKitIn */
         BrandKitIn: {
@@ -331,11 +516,29 @@ export interface components {
              */
             workspace_id: string;
         };
+        /** BrandUrlIn */
+        BrandUrlIn: {
+            /**
+             * Max Pages
+             * @default 10
+             */
+            max_pages: number;
+            /**
+             * Url
+             * Format: uri
+             */
+            url: string;
+        };
         /**
          * Channel
          * @enum {string}
          */
         Channel: "instagram_post" | "instagram_carousel" | "linkedin_post" | "x_post" | "email" | "poster";
+        /**
+         * DocumentStatus
+         * @enum {string}
+         */
+        DocumentStatus: "pending" | "processing" | "ready" | "failed";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -347,6 +550,17 @@ export interface components {
             database: string;
             /** Status */
             status: string;
+        };
+        /** IndexStatusOut */
+        IndexStatusOut: {
+            /** Configured Dim */
+            configured_dim: number;
+            /** Configured Model */
+            configured_model: string | null;
+            /** Needs Reindex */
+            needs_reindex: boolean;
+            /** Stale Documents */
+            stale_documents: number;
         };
         /**
          * Industry
@@ -422,6 +636,50 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** RetrievalOut */
+        RetrievalOut: {
+            /** Chunks */
+            chunks: components["schemas"]["RetrievedChunkOut"][];
+            /** Dropped Below Threshold */
+            dropped_below_threshold: number;
+            /** Min Score */
+            min_score: number;
+            /** Query */
+            query: string;
+        };
+        /** RetrievalQueryIn */
+        RetrievalQueryIn: {
+            /**
+             * K
+             * @default 6
+             */
+            k: number;
+            /** Query */
+            query: string;
+        };
+        /** RetrievedChunkOut */
+        RetrievedChunkOut: {
+            /**
+             * Chunk Id
+             * Format: uuid
+             */
+            chunk_id: string;
+            /** Content */
+            content: string;
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /** Heading */
+            heading: string | null;
+            /** Page */
+            page: number | null;
+            /** Score */
+            score: number;
+            /** Source */
+            source: string;
+        };
         /** SessionOut */
         SessionOut: {
             /** Access Token */
@@ -462,6 +720,11 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** VoiceFromSamplesIn */
+        VoiceFromSamplesIn: {
+            /** Samples */
+            samples: string[];
         };
         /**
          * VoiceProfile
@@ -929,6 +1192,266 @@ export interface operations {
             };
         };
     };
+    brand_list_brand_docs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandDocumentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    brand_upload_brand_doc: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_brand_upload_brand_doc"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    brand_test_retrieval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetrievalQueryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetrievalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    brand_import_brand_url: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandUrlIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    brand_delete_brand_doc: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                doc_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    brand_reindex_brand_doc: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                doc_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    brand_brand_index_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    brand_reindex_stale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandDocumentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     workspaces_get_brand_kit: {
         parameters: {
             query?: never;
@@ -1017,6 +1540,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogoUploadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    brand_voice_from_samples: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoiceFromSamplesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceProfile"];
                 };
             };
             /** @description Validation Error */

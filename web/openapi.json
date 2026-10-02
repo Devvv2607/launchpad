@@ -139,6 +139,126 @@
         "title": "Body_assets_upload_brand_logo",
         "type": "object"
       },
+      "Body_brand_upload_brand_doc": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_brand_upload_brand_doc",
+        "type": "object"
+      },
+      "BrandDocumentOut": {
+        "properties": {
+          "chunk_count": {
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "embedding_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedding Model"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "needs_reindex": {
+            "default": false,
+            "title": "Needs Reindex",
+            "type": "boolean"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "source_type": {
+            "enum": [
+              "file",
+              "url"
+            ],
+            "title": "Source Type",
+            "type": "string"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_type",
+          "filename",
+          "source_url",
+          "mime_type",
+          "size_bytes",
+          "status",
+          "error",
+          "chunk_count",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "BrandDocumentOut",
+        "type": "object"
+      },
       "BrandKitIn": {
         "properties": {
           "accent_colors": {
@@ -413,6 +533,29 @@
         "title": "BrandKitOut",
         "type": "object"
       },
+      "BrandUrlIn": {
+        "properties": {
+          "max_pages": {
+            "default": 10,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Max Pages",
+            "type": "integer"
+          },
+          "url": {
+            "format": "uri",
+            "maxLength": 2083,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "BrandUrlIn",
+        "type": "object"
+      },
       "Channel": {
         "enum": [
           "instagram_post",
@@ -423,6 +566,16 @@
           "poster"
         ],
         "title": "Channel",
+        "type": "string"
+      },
+      "DocumentStatus": {
+        "enum": [
+          "pending",
+          "processing",
+          "ready",
+          "failed"
+        ],
+        "title": "DocumentStatus",
         "type": "string"
       },
       "HTTPValidationError": {
@@ -454,6 +607,41 @@
           "database"
         ],
         "title": "HealthOut",
+        "type": "object"
+      },
+      "IndexStatusOut": {
+        "properties": {
+          "configured_dim": {
+            "title": "Configured Dim",
+            "type": "integer"
+          },
+          "configured_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configured Model"
+          },
+          "needs_reindex": {
+            "title": "Needs Reindex",
+            "type": "boolean"
+          },
+          "stale_documents": {
+            "title": "Stale Documents",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "configured_model",
+          "configured_dim",
+          "stale_documents",
+          "needs_reindex"
+        ],
+        "title": "IndexStatusOut",
         "type": "object"
       },
       "Industry": {
@@ -654,6 +842,118 @@
         "title": "RegisterIn",
         "type": "object"
       },
+      "RetrievalOut": {
+        "properties": {
+          "chunks": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievedChunkOut"
+            },
+            "title": "Chunks",
+            "type": "array"
+          },
+          "dropped_below_threshold": {
+            "title": "Dropped Below Threshold",
+            "type": "integer"
+          },
+          "min_score": {
+            "title": "Min Score",
+            "type": "number"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "min_score",
+          "chunks",
+          "dropped_below_threshold"
+        ],
+        "title": "RetrievalOut",
+        "type": "object"
+      },
+      "RetrievalQueryIn": {
+        "properties": {
+          "k": {
+            "default": 6,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "K",
+            "type": "integer"
+          },
+          "query": {
+            "maxLength": 500,
+            "minLength": 2,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "RetrievalQueryIn",
+        "type": "object"
+      },
+      "RetrievedChunkOut": {
+        "properties": {
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "document_id",
+          "content",
+          "score",
+          "source",
+          "page",
+          "heading"
+        ],
+        "title": "RetrievedChunkOut",
+        "type": "object"
+      },
       "SessionOut": {
         "properties": {
           "access_token": {
@@ -751,6 +1051,24 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VoiceFromSamplesIn": {
+        "properties": {
+          "samples": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 3,
+            "title": "Samples",
+            "type": "array"
+          }
+        },
+        "required": [
+          "samples"
+        ],
+        "title": "VoiceFromSamplesIn",
         "type": "object"
       },
       "VoiceProfile": {
@@ -1570,6 +1888,399 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/brand-docs": {
+      "get": {
+        "operationId": "brand_list_brand_docs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BrandDocumentOut"
+                  },
+                  "title": "Response Brand List Brand Docs",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Brand Docs",
+        "tags": [
+          "brand"
+        ]
+      },
+      "post": {
+        "operationId": "brand_upload_brand_doc",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_brand_upload_brand_doc"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandDocumentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Brand Doc",
+        "tags": [
+          "brand"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/brand-docs/search": {
+      "post": {
+        "operationId": "brand_test_retrieval",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrievalQueryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Retrieval",
+        "tags": [
+          "brand"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/brand-docs/url": {
+      "post": {
+        "operationId": "brand_import_brand_url",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandUrlIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandDocumentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Brand Url",
+        "tags": [
+          "brand"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/brand-docs/{doc_id}": {
+      "delete": {
+        "operationId": "brand_delete_brand_doc",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Doc Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Brand Doc",
+        "tags": [
+          "brand"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/brand-docs/{doc_id}/reindex": {
+      "post": {
+        "operationId": "brand_reindex_brand_doc",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Doc Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandDocumentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reindex Brand Doc",
+        "tags": [
+          "brand"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/brand-index": {
+      "get": {
+        "operationId": "brand_brand_index_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Brand Index Status",
+        "tags": [
+          "brand"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/brand-index/reindex": {
+      "post": {
+        "operationId": "brand_reindex_stale",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BrandDocumentOut"
+                  },
+                  "title": "Response Brand Reindex Stale",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reindex Stale",
+        "tags": [
+          "brand"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/brand-kit": {
       "get": {
         "operationId": "workspaces_get_brand_kit",
@@ -1714,6 +2425,59 @@
         "summary": "Upload Brand Logo",
         "tags": [
           "assets"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/brand-kit/voice-profile": {
+      "post": {
+        "operationId": "brand_voice_from_samples",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceFromSamplesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice From Samples",
+        "tags": [
+          "brand"
         ]
       }
     }

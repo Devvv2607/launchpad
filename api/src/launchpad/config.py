@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     embedding_model: str | None = None
     # Must match the pgvector column (migration); changing it requires a migration + re-index.
     embedding_dim: int = 768
+    # Chunks below this cosine similarity are dropped from retrieval results.
+    rag_min_score: float = 0.55
 
     # --- Images ---
     image_provider: ImageProvider | None = None

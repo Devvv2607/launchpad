@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from launchpad.db.session import get_sessionmaker
 from launchpad.domain.enums import JobKind, JobStatus
+from launchpad.jobs import PermanentJobError
 from launchpad.models import ScheduledJob
 
 log = structlog.get_logger("launchpad.worker")
@@ -29,10 +30,6 @@ HANDLERS: dict[JobKind, Handler] = {}
 # A RUNNING job whose lock is older than this is assumed orphaned (worker crashed).
 STALE_LOCK = timedelta(minutes=10)
 CLAIM_BATCH = 20
-
-
-class PermanentJobError(Exception):
-    """Raise from a handler when retrying cannot help (e.g. item no longer approved)."""
 
 
 def register(kind: JobKind) -> Callable[[Handler], Handler]:
