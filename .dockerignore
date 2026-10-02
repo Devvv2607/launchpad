@@ -9,3 +9,5 @@ web
 .git
 .env
 .env.*
+**/.devdb
+.devdb

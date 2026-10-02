@@ -30,3 +30,6 @@ next-env.d.ts
 *.log
 .DS_Store
 Thumbs.db
+
+# Project-local Postgres cluster (tasks.py db-init)
+.devdb/

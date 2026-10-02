@@ -21,8 +21,12 @@ AuthProvider = Literal["local", "supabase"]
 
 class Settings(BaseSettings):
     # Repo-root .env (docker-compose/Makefile) and api/.env both work; the latter wins.
+    # Empty values (e.g. `LLM_PROVIDER=` straight from .env.example) mean "unset", not "".
     model_config = SettingsConfigDict(
-        env_file=("../.env", ".env"), env_file_encoding="utf-8", extra="ignore"
+        env_file=("../.env", ".env"),
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,
+        extra="ignore",
     )
 
     # --- App ---

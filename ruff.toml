@@ -1,0 +1,2 @@
+# Lint scripts/ with the same rules as the API package.
+extend = "api/pyproject.toml"

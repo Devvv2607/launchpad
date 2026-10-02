@@ -26,7 +26,7 @@ flowchart LR
 
 ```bash
 cp .env.example .env
-make keys >> .env          # appends fresh JWT_SECRET + TOKEN_ENCRYPTION_KEYS (later values win)
+make keys                  # or: py scripts\tasks.py keys — paste the output into .env
 docker compose up --build  # postgres, redis, minio, migrate, api, worker, web
 ```
 
@@ -34,21 +34,43 @@ Then open http://localhost:3000 for the web app, or http://localhost:8000/docs f
 
 ## Local development (no Docker)
 
-You need Python 3.11, Node 22, Postgres 16+ with the `vector` extension, and Redis.
+You need Python 3.11+, Node 22+, Redis, and Postgres 16+ with the `vector` extension. Every task works two ways:
 
-```bash
-make setup                 # venv + pip install -e api[dev] worker, npm ci
-make migrate
-make dev-api   # :8000
-make dev-worker
-make dev-web   # :3000
+- **With `make`** (Linux, macOS, CI): `make <task>`
+- **Without `make`** (e.g. Windows, no extra installs): `py scripts\tasks.py <task>`, or `python3 scripts/tasks.py <task>` on macOS/Linux
+
+The Makefile is a thin wrapper around `scripts/tasks.py`, so both always do the same thing. Run either with no task to list them all.
+
+| Task | What it does |
+| --- | --- |
+| `setup` | Creates `api/.venv`, installs API + worker + web deps, installs the git hooks |
+| `keys` | Prints fresh `JWT_SECRET` / `TOKEN_ENCRYPTION_KEYS` for `.env` |
+| `doctor` | Checks toolchain, services and required env vars (see below) |
+| `db-init` / `db-start` / `db-stop` | A project-local Postgres + pgvector cluster in `.devdb/` on port 55432. Needs no Docker and no admin password. |
+| `migrate` / `migration "msg"` | Apply / autogenerate Alembic migrations |
+| `dev` | API (:8000) + worker + web (:3000) together. Ctrl+C stops all three. |
+| `dev-api` / `dev-worker` / `dev-web` | Run one service |
+| `check` | Everything CI runs: `lint`, `typecheck`, `test` |
+| `gen-api` | Regenerate `web/openapi.json` and the typed TS client |
+| `up` / `down` / `logs` | Docker Compose stack |
+
+First run on Windows:
+
+```powershell
+py -3.11 scripts\tasks.py setup
+copy .env.example .env            # then paste your API keys into .env
+py scripts\tasks.py keys          # paste the two lines into .env
+py scripts\tasks.py db-init       # prints the DATABASE_URL to put in .env
+py scripts\tasks.py migrate
+py scripts\tasks.py doctor
+py scripts\tasks.py dev
 ```
 
-Run `make check` to lint, type-check and test. Tests need `TEST_DATABASE_URL`, pointing at a disposable database.
+Tests never touch your dev data. They use `TEST_DATABASE_URL`, or if that's unset, the `*_test` database next to `DATABASE_URL`, which `db-init` creates for you.
 
-### `make doctor`
+### Doctor
 
-`make doctor` checks your machine before you debug anything else. It verifies:
+`make doctor` (or `py scripts\tasks.py doctor`) checks your machine before you debug anything else. It verifies:
 
 - Python ≥ 3.11 and Node ≥ 22
 - Postgres is reachable and has the `pgvector` extension
