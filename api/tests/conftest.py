@@ -40,7 +40,14 @@ def _migrated_db() -> None:
     """Run the real migrations once, so tests exercise the schema that ships."""
     cfg = Config(os.path.join(_API_DIR, "alembic.ini"))
     cfg.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
-    command.downgrade(cfg, "base")
+    # Start from an empty schema (not `downgrade base`): leftover rows from a manual run could
+    # make a lossy downgrade fail. CI checks downgrades separately on a fresh database.
+    import psycopg
+
+    url = os.environ["DATABASE_URL"].replace("postgresql+asyncpg://", "postgresql://")
+    with psycopg.connect(url, autocommit=True) as conn:
+        conn.execute("DROP SCHEMA public CASCADE")
+        conn.execute("CREATE SCHEMA public")
     command.upgrade(cfg, "head")
 
 
