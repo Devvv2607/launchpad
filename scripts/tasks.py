@@ -314,6 +314,7 @@ def test(args: list[str]) -> None:
     env = test_env()
     py("-m", "pytest", *args, cwd=API, env=env)
     py("-m", "pytest", *args, cwd=WORKER, env=env)
+    run([NPM, "run", "-s", "test"], cwd=WEB)
 
 
 @task("Lint and format-check everything")

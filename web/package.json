@@ -10,7 +10,8 @@
     "gen:api": "openapi-typescript openapi.json -o src/lib/api/schema.d.ts",
     "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "node --experimental-strip-types --no-warnings --test src/lib/agent/*.test.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",
