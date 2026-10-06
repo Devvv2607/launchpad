@@ -320,17 +320,32 @@ async def main_async(args: argparse.Namespace) -> Path:
     ws_ids = await setup_workspaces(provider, model, fast, run_id)
 
     results = []
+    if args.suite == "agent":
+        briefs = []
     for b in briefs:
         r = await run_brief(b, ws_ids[b["workspace"]])
         status = "ok" if r.ok else f"FAILED {r.error_code}"
         print(f"  {b['id']:<22} {status:<28} {r.latency_s:>6}s ${r.cost_usd:.4f}", flush=True)
         results.append(r)
 
+    from evals.agent import agent_markdown, load_scenarios, run_scenario
+
+    agent_results = []
+    if args.suite in ("all", "agent"):
+        for scn in load_scenarios(set(args.only.split(",")) if args.only else None):
+            ar = await run_scenario(scn, ws_ids[scn["workspace"]])
+            failed = [k for k, v in ar.checks.items() if not v]
+            status = "ok" if ar.ok else f"FAILED {','.join(failed)[:40]}"
+            print(f"  {scn['id']:<26} {status:<44} {ar.latency_s:>6}s", flush=True)
+            agent_results.append(ar)
+
     meta = {
         "provider": provider, "model": model, "fast_model": fast,
         "embedding_model": get_settings().embedding_model, "date": datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
         "git": _git_sha(), "fake": bool(args.fake),
-        "prompts": {n: load_prompt(n).version for n in ("write_content", "critique_content")},
+        "prompts": {n: load_prompt(n).version for n in (
+            "write_content", "critique_content", "agent_planner", "agent_system", "plan_campaign")},
+        "suite": args.suite,
     }  # fmt: skip
     summary = summarise(results)
     out_dir = Path(args.out) / datetime.now(UTC).strftime("%Y-%m-%d")
@@ -338,11 +353,19 @@ async def main_async(args: argparse.Namespace) -> Path:
     stem = f"{'fake' if args.fake else provider}-{run_id}"
     (out_dir / f"{stem}.json").write_text(
         json.dumps(
-            {"meta": meta, "summary": summary, "results": [asdict(r) for r in results]}, indent=2
+            {
+                "meta": meta,
+                "summary": summary,
+                "results": [asdict(r) for r in results],
+                "agent": [asdict(a) for a in agent_results],
+            },
+            indent=2,
         ),
         encoding="utf-8",
     )
     md = to_markdown(meta, summary, results)
+    if agent_results:
+        md += "\n\n" + agent_markdown(agent_results) + "\n"
     (out_dir / f"{stem}.md").write_text(md, encoding="utf-8")
     print("\n" + md)
     return out_dir / f"{stem}.md"
@@ -355,7 +378,13 @@ def main() -> None:
     p.add_argument("--provider", choices=["gemini", "groq", "openai", "anthropic"], default=None)
     p.add_argument("--model")
     p.add_argument("--fast-model")
-    p.add_argument("--only", help="comma-separated brief ids")
+    p.add_argument("--only", help="comma-separated brief / scenario ids")
+    p.add_argument(
+        "--suite",
+        choices=["all", "content", "agent"],
+        default="all",
+        help="content briefs, agent scenarios, or both (default)",
+    )
     p.add_argument("--out", default=str(ROOT / "reports"))
     p.add_argument(
         "--fake", action="store_true", help="scripted LLM; validates the harness offline"
@@ -365,6 +394,8 @@ def main() -> None:
         p.error("--provider is required (or --fake)")
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    if sys.platform == "win32":  # LangGraph's psycopg checkpointer can't use the Proactor loop
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(main_async(args))
 
 
