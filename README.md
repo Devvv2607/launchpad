@@ -90,6 +90,14 @@ A run starts when you send a message (`POST /agent/runs`). The API only records 
 | `POST …/agent/runs/{id}/resume` | `{decisions: [{item_id, action, content?}]}`, where `action` is approve, reject or edit. Only while waiting for approval; a second submit gets 409. |
 | `POST …/agent/runs/{id}/cancel` | Stops the run before its next model or tool call. Drafts already written stay drafts. |
 
+### Idempotency keys
+
+`POST /agent/runs` and `POST /content/generate` accept an `Idempotency-Key` header. The web app sends a fresh UUID per click.
+- **Same key, same body:** the original's result. A repeated agent run returns the same run; a repeated generation waits for the original and streams its saved drafts instead of generating again.
+- **Same key, different body:** 422.
+- **Failed original:** the key is released, so a retry runs for real.
+- **Expiry:** keys expire after 24 hours.
+
 ### Agent event stream
 
 Every event has an SSE `id:` (its sequence number in the run), so clients resume exactly where they left off, including across an API restart.
@@ -133,7 +141,7 @@ The Makefile is a thin wrapper around `scripts/tasks.py`, so both always do the 
 | `setup` | Creates `api/.venv`, installs API + worker + web deps, installs the git hooks |
 | `keys` | Prints fresh `JWT_SECRET` / `TOKEN_ENCRYPTION_KEYS` for `.env` |
 | `doctor` | Checks toolchain, services and required env vars (see below) |
-| `db-init` / `db-start` / `db-stop` | A project-local Postgres + pgvector cluster in `.devdb/` on port 55432. Needs no Docker and no admin password. |
+| `db-init` / `db-start` / `db-stop` | A project-local Postgres + pgvector cluster in `.devdb/` on port 5434. Needs no Docker and no admin password. |
 | `migrate` / `migration "msg"` | Apply / autogenerate Alembic migrations |
 | `dev` | API (:8000) + worker + web (:3000) together. Ctrl+C stops all three. |
 | `dev-api` / `dev-worker` / `dev-web` | Run one service |
@@ -169,7 +177,7 @@ Missing variables are listed **by name only**: values are never printed. It exit
 
 ```text
   ✓ Python    3.11.0 (need >= 3.11)
-  ✓ Postgres  18.3 at postgresql://launchpad@localhost:55432/launchpad
+  ✓ Postgres  18.3 at postgresql://launchpad@localhost:5434/launchpad
   ✓ pgvector  extension installed (v0.8.2)
   ✗ Env vars  missing or invalid: LLM_MODEL, GEMINI_API_KEY
 ```
@@ -220,7 +228,10 @@ See [`.env.example`](.env.example) for the full list. The important ones:
 make eval p=gemini                                    # or: py scripts\tasks.py eval gemini
 make eval p=groq a="--model openai/gpt-oss-120b --fast-model openai/gpt-oss-20b"
 make eval p=--fake                                    # offline harness check (also runs in CI)
+make eval p=groq a="--smoke"                          # quick check: Kadak Tees x 3 briefs
 ```
+
+If the provider's quota runs out mid-run (a 429 that survives the client's retries, like a daily token limit), the eval **stops cleanly**. The completed briefs are saved in a report marked **PARTIAL**, which lists what was skipped and what the provider said.
 
 `make eval` also runs **5 agent scenarios** (`--suite all|content|agent`):
 - a café cold-coffee campaign (Instagram + email) that must reach approval with drafts
@@ -287,4 +298,8 @@ Only the offline harness has passed in full: 10/10 briefs and 5/5 agent scenario
 - **Event stream polling:** the stream polls `agent_events` every 0.5 s. That's fine at small scale; a pub/sub fan-out would replace it under load.
 - **Brand documents:** PDFs without headings become one large passage, which makes retrieval coarse. Scanned PDFs need OCR, and SVG logos are rejected.
 - **Onboarding:** refreshing mid-way can create a duplicate workspace.
-- **Duplicate generation (unconfirmed):** during one walkthrough, a content generation was saved twice. The client has no retry, and the cause hasn't been reproduced yet.
+- **Duplicate generation (root cause not proven).** On 2026-10-06 one page started two sequential generations from what was recorded as one click. A replay of the same flow, with the same proxy path and a 6-minute stream, sent exactly one request, and the logs from the original incident were gone. Two real gaps were found and fixed:
+  - a same-tick double-submit race: the in-flight guard read React state, so it now uses a synchronous ref;
+  - a pre-hydration click on Generate natively submitting the form.
+
+  Every generation and agent run now carries an idempotency key, so a repeated request returns the original result.
