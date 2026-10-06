@@ -21,8 +21,9 @@ async function failure(res: Response): Promise<ApiError> {
 }
 
 /** Parse a text/event-stream body, calling `onEvent` per event (with its `id:` if any). */
-async function readSSE(res: Response, onEvent: SSEHandler): Promise<void> {
+async function readSSE(res: Response, onEvent: SSEHandler, onOpen?: () => void): Promise<void> {
   if (!res.ok || !res.body) throw await failure(res);
+  onOpen?.();
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = "";
   for (;;) {
@@ -67,12 +68,18 @@ export async function postSSE(
   await readSSE(res, onEvent);
 }
 
-/** GET an event stream (e.g. an agent run's replayable log). Resolves when the server ends it. */
-export async function getSSE(url: string, onEvent: SSEHandler, signal?: AbortSignal) {
+/** GET an event stream (e.g. an agent run's replayable log). Resolves when the server ends it.
+ * `onOpen` fires once the server has accepted the request and streaming begins. */
+export async function getSSE(
+  url: string,
+  onEvent: SSEHandler,
+  signal?: AbortSignal,
+  onOpen?: () => void,
+) {
   const res = await fetch(url, {
     headers: { accept: "text/event-stream" },
     credentials: "same-origin",
     signal,
   });
-  await readSSE(res, onEvent);
+  await readSSE(res, onEvent, onOpen);
 }

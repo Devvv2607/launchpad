@@ -48,9 +48,11 @@ export function useRunView(ws: string, runId: string) {
                 void qc.invalidateQueries({ queryKey: ["workspaces", ws, "agent", "runs"] });
             },
             ctrl.signal,
+            () => {
+              failures = 0;
+              setReconnecting(false);
+            },
           );
-          failures = 0;
-          setReconnecting(false);
           if (finished) return;
           // The server closed without run_finished: the run ended some other way (e.g. cancelled
           // before it started) or the stream hit its max duration. Check before reconnecting.
