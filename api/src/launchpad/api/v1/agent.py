@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
-from launchpad.agent.runner import TERMINAL, Recorder
+from launchpad.agent.runner import TERMINAL, Recorder, usage_payload
 from launchpad.api.deps import DB, CurrentUser, CurrentWorkspace
 from launchpad.api.errors import Conflict, NotFound
 from launchpad.api.ratelimit import rate_limit
@@ -216,9 +216,7 @@ async def cancel_run(run_id: uuid.UUID, ws: CurrentWorkspace, db: DB) -> RunOut:
         run.final = run.final or "Stopped."
     await db.commit()
     if was_waiting:
-        await Recorder(run.id).emit(
-            "run_finished",
-            {"status": "cancelled", "cost_usd": str(run.cost_usd), "tokens": run.tokens_in},
-        )
+        usage = await usage_payload(db, run)
+        await Recorder(run.id).emit("run_finished", {"status": "cancelled", **usage})
     await db.refresh(run)
     return RunOut.model_validate(run)

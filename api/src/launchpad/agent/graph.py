@@ -254,6 +254,8 @@ async def agent(state: AgentState, runtime: Rt) -> dict[str, Any]:
         update["final"] = result.text
         update["status"] = "finished"
         update["plan"] = _mark_respond_done(state.get("plan"))
+        if update["plan"]:
+            await deps.emit("plan", update["plan"])
     return update
 
 

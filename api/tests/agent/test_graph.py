@@ -195,6 +195,9 @@ async def test_happy_path_pauses_for_approval_then_applies_decisions() -> None:
     assert applied.data == {"approved": 1, "rejected": 1, "edited": 0, "skipped": 0}
     r = await reload(run.id)
     assert r.status == AgentRunStatus.COMPLETED and r.finished_at is not None
+    assert evs[-1].data["cost_complete"] is True  # every call used a priced model
+    last_plan = [e for e in evs if e.type == "plan"][-1]
+    assert [s["status"] for s in last_plan.data["steps"]] == ["done", "done", "done"]
 
     # Every step is also in the trace table.
     async with get_sessionmaker()() as db:
@@ -394,3 +397,13 @@ def test_no_tool_can_publish() -> None:
     assert not any(t.outbound for t in TOOLS.values())
     forbidden = ("publish", "send", "post_")
     assert not [n for n in TOOLS if n.startswith(forbidden)]
+
+
+async def test_unpriced_model_is_reported_as_unknown_cost(monkeypatch: pytest.MonkeyPatch) -> None:
+    for k in ("llm_model", "llm_fast_model"):
+        monkeypatch.setattr(get_settings(), k, "model-without-a-price")
+    run = await new_run("Describe our brand voice")
+    fake = AgentLLM(planner=plan(("Answer", "respond")), turns=[reply("Warm and witty.")])
+    await execute_run(run.id, service=svc(fake))
+    finished = (await events(run.id))[-1]
+    assert finished.data["cost_complete"] is False  # never presented as a real $0

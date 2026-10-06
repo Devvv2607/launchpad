@@ -21,6 +21,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.types import Command
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from launchpad.agent.graph import AgentDeps, RunCancelled, build_graph, run_usage
 from launchpad.config import get_settings
@@ -28,7 +29,7 @@ from launchpad.db.session import get_sessionmaker
 from launchpad.domain.enums import AgentRunStatus, MessageRole
 from launchpad.llm.errors import LLMError
 from launchpad.llm.service import LLMService, llm
-from launchpad.models import AgentEvent, AgentMessage, AgentRun
+from launchpad.models import AgentEvent, AgentMessage, AgentRun, LLMCall
 
 log = structlog.get_logger(__name__)
 
@@ -132,9 +133,21 @@ async def _is_cancelled(run_id: uuid.UUID) -> bool:
     return status == AgentRunStatus.CANCELLED
 
 
+async def usage_payload(db: AsyncSession, run: AgentRun) -> dict[str, Any]:
+    """Usage for run_finished. `cost_complete` is false when any call used a model with no known
+    price, so the UI says "unknown" instead of showing a made-up $0."""
+    unpriced = await db.scalar(
+        select(func.count()).where(
+            LLMCall.run_id == run.id, LLMCall.status == "ok", LLMCall.cost_usd.is_(None)
+        )
+    )
+    return {"cost_usd": str(run.cost_usd), "cost_complete": not unpriced, "tokens": run.tokens_in}
+
+
 async def _finish(
     run_id: uuid.UUID, status: AgentRunStatus, *, final: str | None = None, error: str | None = None
-) -> AgentRun:
+) -> tuple[AgentRun, dict[str, Any]]:
+    """Records the run's end state; returns the run and its usage for the run_finished event."""
     async with get_sessionmaker()() as db:
         run = await db.get(AgentRun, run_id)
         assert run is not None
@@ -150,7 +163,7 @@ async def _finish(
             run.finished_at = datetime.now(UTC)
         await db.commit()
         await db.refresh(run)
-        return run
+        return run, await usage_payload(db, run)
 
 
 async def execute_run(
@@ -225,14 +238,11 @@ async def execute_run(
         try:
             out = await graph.ainvoke(inp, config, context=deps)
         except RunCancelled:
-            run = await _finish(run_id, AgentRunStatus.CANCELLED, final="Stopped.")
-            await rec.emit(
-                "run_finished",
-                {"status": "cancelled", "cost_usd": str(run.cost_usd), "tokens": run.tokens_in},
-            )
+            _, usage = await _finish(run_id, AgentRunStatus.CANCELLED, final="Stopped.")
+            await rec.emit("run_finished", {"status": "cancelled", **usage})
             return AgentRunStatus.CANCELLED
         except LLMError as exc:
-            run = await _finish(run_id, AgentRunStatus.FAILED, error=exc.message)
+            _, usage = await _finish(run_id, AgentRunStatus.FAILED, error=exc.message)
             await rec.emit(
                 "error",
                 {
@@ -243,14 +253,13 @@ async def execute_run(
                     "model": exc.model,
                 },
             )
-            await rec.emit(
-                "run_finished",
-                {"status": "failed", "cost_usd": str(run.cost_usd), "tokens": run.tokens_in},
-            )
+            await rec.emit("run_finished", {"status": "failed", **usage})
             return AgentRunStatus.FAILED
         except Exception as exc:
             log.exception("agent_run_crashed", run_id=str(run_id))
-            run = await _finish(run_id, AgentRunStatus.FAILED, error=f"{type(exc).__name__}: {exc}")
+            _, usage = await _finish(
+                run_id, AgentRunStatus.FAILED, error=f"{type(exc).__name__}: {exc}"
+            )
             await rec.emit(
                 "error",
                 {
@@ -259,29 +268,25 @@ async def execute_run(
                     "hint": "Try again; if it repeats, share the run id.",
                 },
             )
-            await rec.emit(
-                "run_finished",
-                {"status": "failed", "cost_usd": str(run.cost_usd), "tokens": run.tokens_in},
-            )
+            await rec.emit("run_finished", {"status": "failed", **usage})
             return AgentRunStatus.FAILED
 
     interrupts = out.get("__interrupt__") or []
     if interrupts:
         payload = interrupts[0].value
-        run = await _finish(run_id, AgentRunStatus.AWAITING_APPROVAL, final=out.get("final"))
+        await _finish(run_id, AgentRunStatus.AWAITING_APPROVAL, final=out.get("final"))
         await rec.emit(
             "approval_required", {"items": payload.get("items", []), "final": out.get("final")}
         )
         return AgentRunStatus.AWAITING_APPROVAL
-    run = await _finish(run_id, AgentRunStatus.COMPLETED, final=out.get("final"))
+    _, usage = await _finish(run_id, AgentRunStatus.COMPLETED, final=out.get("final"))
     await rec.emit(
         "run_finished",
         {
             "status": out.get("status") or "finished",
             "final": out.get("final"),
             "item_ids": out.get("produced_item_ids") or [],
-            "cost_usd": str(run.cost_usd),
-            "tokens": run.tokens_in,
+            **usage,
         },
     )
     return AgentRunStatus.COMPLETED
