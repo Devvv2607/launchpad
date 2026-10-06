@@ -65,6 +65,9 @@ export default function CreateContentPage() {
   const [error, setError] = useState<unknown>(null);
   const [resultChannel, setResultChannel] = useState<Channel>(channel);
   const abort = useRef<AbortController | null>(null);
+  // A ref, not state: two submits in the same tick (double click, Enter + click) both read
+  // `running` as false before React re-renders. The ref flips synchronously.
+  const inFlight = useRef(false);
 
   const examples = ws.data ? BRIEF_EXAMPLES[ws.data.industry] : GENERIC_EXAMPLES;
 
@@ -75,6 +78,11 @@ export default function CreateContentPage() {
   };
 
   async function generate() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    // One key per user action: if this request is repeated (retry, proxy, double submit),
+    // the API replays the first result instead of generating again.
+    const idempotencyKey = crypto.randomUUID();
     abort.current?.abort();
     const controller = new AbortController();
     abort.current = controller;
@@ -104,10 +112,12 @@ export default function CreateContentPage() {
           }
         },
         controller.signal,
+        { "idempotency-key": idempotencyKey },
       );
     } catch (err) {
       setError(err);
     } finally {
+      inFlight.current = false;
       setRunning(false);
       setSteps((prev) => prev.map((s) => ({ ...s, status: "done" })));
     }
@@ -199,7 +209,9 @@ export default function CreateContentPage() {
           </div>
 
           <div className="flex gap-2">
-            <Button type="submit" size="lg" disabled={tooShort || running}>
+            {/* Disabled until hydrated: a pre-hydration click would natively submit the form
+                and reload the page, losing the brief. */}
+            <Button type="submit" size="lg" disabled={!hydrated || tooShort || running}>
               {running ? (
                 <Loader2 className="size-4 animate-spin" aria-hidden />
               ) : (

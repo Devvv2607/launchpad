@@ -119,6 +119,7 @@ function AgentChat() {
   const [views, setViews] = useState<Record<string, { view: RunView; reconnecting: boolean }>>({});
   const [selected, setSelected] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+  const sending = useRef(false);
 
   const ordered = useMemo(
     () =>
@@ -153,14 +154,18 @@ function AgentChat() {
 
   function send(text: string) {
     const msg = text.trim();
-    if (msg.length < 2 || busy) return;
+    if (msg.length < 2 || busy || sending.current) return;
+    sending.current = true; // synchronous lock: Enter + click in the same tick sends once
     start.mutate(
-      { message: msg, thread_id: thread ?? null },
+      { body: { message: msg, thread_id: thread ?? null }, key: crypto.randomUUID() },
       {
         onSuccess: (run) => {
           setMessage("");
           setSelected(run.id);
           if (!thread) router.replace(`/w/${ws}/agent?thread=${encodeURIComponent(run.thread_id)}`);
+        },
+        onSettled: () => {
+          sending.current = false;
         },
       },
     );

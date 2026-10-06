@@ -57,10 +57,11 @@ export async function postSSE(
   body: unknown,
   onEvent: SSEHandler,
   signal?: AbortSignal,
+  headers: Record<string, string> = {},
 ): Promise<void> {
   const res = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json", accept: "text/event-stream" },
+    headers: { "content-type": "application/json", accept: "text/event-stream", ...headers },
     credentials: "same-origin",
     body: JSON.stringify(body),
     signal,

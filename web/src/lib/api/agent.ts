@@ -63,10 +63,11 @@ export function useContentItem(ws: string, itemId: string) {
 export function useStartRun(ws: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Schemas["RunCreateIn"]) =>
+    // `key` identifies one user action; a repeat of the same request returns the same run.
+    mutationFn: ({ body, key }: { body: Schemas["RunCreateIn"]; key: string }) =>
       unwrap(
         api.POST("/api/v1/workspaces/{workspace_id}/agent/runs", {
-          params: { path: { workspace_id: ws } },
+          params: { path: { workspace_id: ws }, header: { "idempotency-key": key } },
           body,
         }),
       ),
