@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Bot,
   ChevronsUpDown,
   LayoutDashboard,
   LogOut,
@@ -40,6 +41,7 @@ import { rememberWorkspace } from "@/lib/workspace";
 function navFor(wsId: string) {
   return [
     { href: `/w/${wsId}`, label: "Dashboard", icon: LayoutDashboard, exact: true },
+    { href: `/w/${wsId}/agent`, label: "Agent", icon: Bot },
     { href: `/w/${wsId}/create`, label: "Create", icon: Sparkles },
     { href: `/w/${wsId}/brand`, label: "Brand kit", icon: Palette },
     { href: `/w/${wsId}/settings/ai`, label: "AI settings", icon: SlidersHorizontal },

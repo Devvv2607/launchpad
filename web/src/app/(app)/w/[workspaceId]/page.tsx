@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useRuns } from "@/lib/api/agent";
 import { useBrandKit, useContentList, useWorkspace } from "@/lib/api/hooks";
 
 export default function DashboardPage() {
@@ -52,9 +53,7 @@ export default function DashboardPage() {
           </EmptyState>
         </Section>
         <Section title="Recent agent runs">
-          <EmptyState icon={Sparkles} title="No runs yet">
-            Each conversation with the agent is saved here with every step it took.
-          </EmptyState>
+          <RecentRuns ws={workspaceId} />
         </Section>
         <Section title="Performance">
           <EmptyState icon={BarChart3} title="No metrics yet">
@@ -124,5 +123,58 @@ function Drafts({ workspaceId }: { workspaceId: string }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+const RUN_STATUS: Record<string, string> = {
+  running: "Running",
+  awaiting_approval: "Needs review",
+  completed: "Done",
+  failed: "Failed",
+  cancelled: "Stopped",
+};
+
+function RecentRuns({ ws }: { ws: string }) {
+  const runs = useRuns(ws, { limit: 5 });
+  if (runs.isPending) return <Skeleton className="h-24 w-full" />;
+  if (runs.isError) return <ErrorState error={runs.error} onRetry={() => void runs.refetch()} />;
+  if (!runs.data.length)
+    return (
+      <EmptyState
+        icon={Sparkles}
+        title="No runs yet"
+        action={
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/w/${ws}/agent`}>Talk to the agent</Link>
+          </Button>
+        }
+      >
+        Each conversation with the agent is saved here with every step it took.
+      </EmptyState>
+    );
+  return (
+    <ul className="divide-y rounded-lg border">
+      {runs.data.map((r) => (
+        <li key={r.id}>
+          <Link
+            href={`/w/${ws}/agent?thread=${encodeURIComponent(r.thread_id)}`}
+            className="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/60"
+          >
+            <span className="min-w-0 flex-1 truncate">{r.title ?? r.input}</span>
+            <span
+              className={
+                r.status === "awaiting_approval"
+                  ? "text-xs font-medium text-marigold"
+                  : r.status === "failed"
+                    ? "text-xs text-rose"
+                    : "text-xs text-muted-foreground"
+              }
+            >
+              {RUN_STATUS[r.status] ?? r.status}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
