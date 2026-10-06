@@ -2851,6 +2851,7 @@
         ]
       },
       "post": {
+        "description": "Send an `Idempotency-Key` header per user action: a repeated request (double submit,\nnetwork retry) returns the run the first one created instead of starting another.",
         "operationId": "agent_create_run",
         "parameters": [
           {
@@ -2861,6 +2862,23 @@
               "format": "uuid",
               "title": "Workspace Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],
@@ -4084,7 +4102,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/content/generate": {
       "post": {
-        "description": "Streams progress as SSE: `step`, `variant`, `item`, then `done` or `error`.",
+        "description": "Streams progress as SSE: `step`, `variant`, `item`, then `done` or `error`.\n\nWith an `Idempotency-Key` header, a repeat of the same request (double submit, network or\nproxy retry) doesn't generate again: it waits for the original and streams its saved items.",
         "operationId": "content_generate_content",
         "parameters": [
           {
@@ -4095,6 +4113,23 @@
               "format": "uuid",
               "title": "Workspace Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           }
         ],

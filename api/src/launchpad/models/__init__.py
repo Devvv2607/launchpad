@@ -6,6 +6,7 @@ from launchpad.models.brand import BrandChunk, BrandDocument, BrandKit
 from launchpad.models.campaign import Campaign
 from launchpad.models.channel import ChannelConnection, MetricSnapshot
 from launchpad.models.content import ContentAsset, ContentItem
+from launchpad.models.idempotency import IdempotencyKey
 from launchpad.models.job import ScheduledJob
 from launchpad.models.user import User
 from launchpad.models.workspace import Workspace
@@ -22,6 +23,7 @@ __all__ = [
     "ChannelConnection",
     "ContentAsset",
     "ContentItem",
+    "IdempotencyKey",
     "LLMCall",
     "MetricSnapshot",
     "ScheduledJob",

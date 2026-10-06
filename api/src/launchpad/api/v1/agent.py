@@ -16,7 +16,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from launchpad import idempotency as idem
 from launchpad.agent.runner import TERMINAL, Recorder, usage_payload
 from launchpad.api.deps import DB, CurrentUser, CurrentWorkspace
 from launchpad.api.errors import Conflict, NotFound
@@ -25,7 +27,7 @@ from launchpad.config import get_settings
 from launchpad.db.session import get_sessionmaker
 from launchpad.domain.enums import AgentRunStatus, JobKind
 from launchpad.jobs.queue import enqueue
-from launchpad.models import AgentEvent, AgentRun, Campaign, Workspace
+from launchpad.models import AgentEvent, AgentRun, Campaign, User, Workspace
 from launchpad.schemas.agent import EventOut, ResumeIn, RunCreateIn, RunDetailOut, RunOut
 
 router = APIRouter(prefix="/workspaces/{workspace_id}/agent", tags=["agent"])
@@ -49,7 +51,43 @@ async def _run(db: DB, ws: Workspace, run_id: uuid.UUID) -> AgentRun:
     status_code=201,
     dependencies=[Depends(rate_limit("agent_run", 10, 60))],
 )
-async def create_run(body: RunCreateIn, ws: CurrentWorkspace, user: CurrentUser, db: DB) -> RunOut:
+async def create_run(
+    body: RunCreateIn,
+    ws: CurrentWorkspace,
+    user: CurrentUser,
+    db: DB,
+    idempotency_key: str | None = Header(default=None, max_length=128),
+) -> RunOut:
+    """Send an `Idempotency-Key` header per user action: a repeated request (double submit,
+    network retry) returns the run the first one created instead of starting another."""
+    if not idempotency_key:
+        return await _create_run(body, ws, user, db)
+    c = await idem.claim(
+        db, workspace_id=ws.id, scope="agent.run", key=idempotency_key,
+        body=body.model_dump(mode="json"),
+    )  # fmt: skip
+    if not c.first:
+        for _ in range(20):  # the original is still creating its run (takes milliseconds)
+            if c.status == "done" and c.response:
+                run = await db.get(AgentRun, uuid.UUID(c.response["run_id"]))
+                if run is not None:
+                    return RunOut.model_validate(run)
+            await asyncio.sleep(0.25)
+            row = await idem.current(db, c.id)
+            if row is None:
+                raise Conflict("The original request failed. Send it again with a new key.")
+            c = idem.Claim(row.id, False, row.status, row.response)
+        raise Conflict("The original request is still being processed.")
+    try:
+        out = await _create_run(body, ws, user, db)
+    except BaseException:
+        await idem.release(db, c.id)
+        raise
+    await idem.complete(db, c.id, {"run_id": str(out.id)})
+    return out
+
+
+async def _create_run(body: RunCreateIn, ws: Workspace, user: User, db: AsyncSession) -> RunOut:
     if body.campaign_id:
         campaign = await db.get(Campaign, body.campaign_id)
         if campaign is None or campaign.workspace_id != ws.id:

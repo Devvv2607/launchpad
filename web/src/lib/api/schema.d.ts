@@ -153,7 +153,11 @@ export interface paths {
         /** List Runs */
         get: operations["agent_list_runs"];
         put?: never;
-        /** Create Run */
+        /**
+         * Create Run
+         * @description Send an `Idempotency-Key` header per user action: a repeated request (double submit,
+         *     network retry) returns the run the first one created instead of starting another.
+         */
         post: operations["agent_create_run"];
         delete?: never;
         options?: never;
@@ -493,6 +497,9 @@ export interface paths {
         /**
          * Generate Content
          * @description Streams progress as SSE: `step`, `variant`, `item`, then `done` or `error`.
+         *
+         *     With an `Idempotency-Key` header, a repeat of the same request (double submit, network or
+         *     proxy retry) doesn't generate again: it waits for the original and streams its saved items.
          */
         post: operations["content_generate_content"];
         delete?: never;
@@ -1734,7 +1741,9 @@ export interface operations {
     agent_create_run: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
             path: {
                 workspace_id: string;
             };
@@ -2470,7 +2479,9 @@ export interface operations {
     content_generate_content: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
             path: {
                 workspace_id: string;
             };

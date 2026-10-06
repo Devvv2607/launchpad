@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Header, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from launchpad import idempotency as idem
 from launchpad.api.deps import DB, CurrentUser, CurrentWorkspace
 from launchpad.api.errors import AppError, Conflict, NotFound
 from launchpad.api.ratelimit import rate_limit
@@ -85,9 +88,18 @@ def _error_payload(exc: Exception, request: Request) -> dict[str, Any]:
     responses={200: {"content": {"text/event-stream": {}}, "description": "Server-sent events"}},
 )
 async def generate_content(
-    body: GenerateIn, request: Request, ws: CurrentWorkspace, user: CurrentUser, db: DB
+    body: GenerateIn,
+    request: Request,
+    ws: CurrentWorkspace,
+    user: CurrentUser,
+    db: DB,
+    idempotency_key: str | None = Header(default=None, max_length=128),
 ) -> StreamingResponse:
-    """Streams progress as SSE: `step`, `variant`, `item`, then `done` or `error`."""
+    """Streams progress as SSE: `step`, `variant`, `item`, then `done` or `error`.
+
+    With an `Idempotency-Key` header, a repeat of the same request (double submit, network or
+    proxy retry) doesn't generate again: it waits for the original and streams its saved items.
+    """
     if body.channel == Channel.POSTER:
         raise AppError("Posters are designed in the poster studio, not generated as text.")
     campaign_goal = None
@@ -97,6 +109,14 @@ async def generate_content(
             raise NotFound("Campaign not found.")
         campaign_goal = campaign.goal.value
     ws_id, user_id = ws.id, user.id
+    claim: idem.Claim | None = None
+    if idempotency_key:
+        claim = await idem.claim(
+            db, workspace_id=ws.id, scope="content.generate", key=idempotency_key,
+            body=body.model_dump(mode="json"),
+        )  # fmt: skip
+        if not claim.first:
+            return _sse_response(_replay(claim.id, request))
 
     async def events() -> AsyncIterator[bytes]:
         queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue()
@@ -118,14 +138,17 @@ async def generate_content(
                         progress=progress,
                     )  # fmt: skip
                     ids = [r.item_id for r in results if r.item_id]
-                    items = list(
-                        await session.scalars(select(ContentItem).where(ContentItem.id.in_(ids)))
-                    )
-                    order = {i: n for n, i in enumerate(ids)}
-                    for item in sorted(items, key=lambda it: order[it.id]):
+                    for item in await _items_in_order(session, ids):
                         await queue.put(("item", item_out(item).model_dump(mode="json")))
+                    if claim is not None:
+                        await idem.complete(session, claim.id, {"item_ids": [str(i) for i in ids]})
                     await queue.put(("done", {"item_ids": [str(i) for i in ids]}))
-                except Exception as exc:
+                except BaseException as exc:
+                    if claim is not None:  # failed or cancelled: a retry may run it again
+                        async with get_sessionmaker()() as cleanup:
+                            await idem.release(cleanup, claim.id)
+                    if not isinstance(exc, Exception):
+                        raise
                     await queue.put(("error", _error_payload(exc, request)))
                 finally:
                     await queue.put(None)
@@ -145,11 +168,55 @@ async def generate_content(
             if not task.done():  # client went away: stop spending tokens
                 task.cancel()
 
+    return _sse_response(events())
+
+
+def _sse_response(stream: AsyncIterator[bytes]) -> StreamingResponse:
     return StreamingResponse(
-        events(),
+        stream,
         media_type="text/event-stream",
         headers={"cache-control": "no-cache, no-transform", "x-accel-buffering": "no"},
     )
+
+
+async def _items_in_order(session: AsyncSession, ids: list[uuid.UUID]) -> list[ContentItem]:
+    items = list(await session.scalars(select(ContentItem).where(ContentItem.id.in_(ids))))
+    order = {i: n for n, i in enumerate(ids)}
+    return sorted(items, key=lambda it: order[it.id])
+
+
+REPLAY_WAIT_S = 15 * 60
+
+
+async def _replay(claim_id: uuid.UUID, request: Request) -> AsyncIterator[bytes]:
+    """A repeat of an in-flight or finished generation: wait for the original, then stream its
+    saved items. Never starts a second generation."""
+    label = "Already generating this request; waiting for it to finish"
+    yield _sse("step", {"key": "replay", "status": "running", "label": label})
+    started = time.monotonic()
+    last_ping = started
+    while time.monotonic() - started < REPLAY_WAIT_S:
+        async with get_sessionmaker()() as session:
+            row = await idem.current(session, claim_id)
+            if row is None:
+                yield _sse("error", {
+                    "code": "original_request_failed",
+                    "message": "The original request for this generation failed.",
+                    "hint": "Try again; it will start a fresh generation.",
+                    "request_id": getattr(request.state, "request_id", None),
+                })  # fmt: skip
+                return
+            if row.status == "done" and row.response is not None:
+                ids = [uuid.UUID(i) for i in row.response.get("item_ids", [])]
+                for item in await _items_in_order(session, ids):
+                    yield _sse("item", item_out(item).model_dump(mode="json"))
+                yield _sse("done", {"item_ids": [str(i) for i in ids], "replayed": True})
+                return
+        if time.monotonic() - last_ping >= 15:
+            yield b": keep-alive\n\n"
+            last_ping = time.monotonic()
+        await asyncio.sleep(1)
+    yield _sse("error", {"code": "timeout", "message": "The original request is taking too long."})
 
 
 @router.get("", response_model=list[ContentItemOut])
