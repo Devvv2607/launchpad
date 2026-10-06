@@ -25,7 +25,7 @@ from urllib.parse import urlsplit, urlunsplit
 ROOT = Path(__file__).resolve().parent.parent
 API, WORKER, WEB = ROOT / "api", ROOT / "worker", ROOT / "web"
 DEVDB = ROOT / ".devdb"
-DEVDB_PORT = 55432
+DEFAULT_DEVDB_PORT = 5434  # below Windows' dynamic range, where Hyper-V/WSL reserve ports
 IS_WINDOWS = os.name == "nt"
 NPM = "npm.cmd" if IS_WINDOWS else "npm"
 NPX = "npx.cmd" if IS_WINDOWS else "npx"
@@ -75,6 +75,17 @@ def read_dotenv() -> dict[str, str]:
                 key, _, value = line.partition("=")
                 values[key.strip()] = value.strip().strip('"').strip("'")
     return values
+
+
+def devdb_port() -> int:
+    """The .devdb port: DEVDB_PORT, else the port of a localhost DATABASE_URL, else 5434."""
+    if os.environ.get("DEVDB_PORT"):
+        return int(os.environ["DEVDB_PORT"])
+    url = os.environ.get("DATABASE_URL") or read_dotenv().get("DATABASE_URL") or ""
+    parts = urlsplit(url)
+    if parts.hostname in ("localhost", "127.0.0.1") and parts.port:
+        return parts.port
+    return DEFAULT_DEVDB_PORT
 
 
 def test_env() -> dict[str, str]:
@@ -181,14 +192,14 @@ def db_init(_: list[str]) -> None:
     )
     db_start([])
     for name in ("launchpad", "launchpad_test"):
-        run([pg("createdb"), "-h", "localhost", "-p", str(DEVDB_PORT), "-U", "launchpad", name])
+        run([pg("createdb"), "-h", "localhost", "-p", str(devdb_port()), "-U", "launchpad", name])
         run(
             [
                 pg("psql"),
                 "-h",
                 "localhost",
                 "-p",
-                str(DEVDB_PORT),
+                str(devdb_port()),
                 "-U",
                 "launchpad",
                 "-d",
@@ -199,7 +210,7 @@ def db_init(_: list[str]) -> None:
         )
     print(
         "\nLocal cluster ready (trust auth, localhost only). Put this in .env:\n"
-        f"DATABASE_URL=postgresql+asyncpg://launchpad@localhost:{DEVDB_PORT}/launchpad"
+        f"DATABASE_URL=postgresql+asyncpg://launchpad@localhost:{devdb_port()}/launchpad"
     )
 
 
@@ -208,13 +219,13 @@ def db_start(_: list[str]) -> None:
     data = DEVDB / "pgdata"
     if not data.exists():
         sys.exit("No local cluster yet. Run the 'db-init' task first.")
-    print(f"Starting Postgres on localhost:{DEVDB_PORT} (log: .devdb/postgres.log)", flush=True)
+    print(f"Starting Postgres on localhost:{devdb_port()} (log: .devdb/postgres.log)", flush=True)
     # The server inherits pg_ctl's handles; detach them so callers reading our output
     # (pipes, CI, IDEs) don't block forever waiting for EOF. Logs go to the -l file.
     result = subprocess.run(  # noqa: S603
         [
             pg("pg_ctl"), "-D", str(data), "-l", str(DEVDB / "postgres.log"), "-w",
-            "-o", f"-p {DEVDB_PORT} -c listen_addresses=localhost", "start",
+            "-o", f"-p {devdb_port()} -c listen_addresses=localhost", "start",
         ],
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         check=False,
@@ -224,6 +235,15 @@ def db_start(_: list[str]) -> None:
         if status.returncode == 0:
             print("Already running.")
             return
+        log = (DEVDB / "postgres.log").read_text(encoding="utf-8", errors="replace")[-2000:]
+        if "could not bind" in log and "Permission denied" in log:
+            sys.exit(
+                f"Port {devdb_port()} is reserved by Windows (Hyper-V/WSL exclude port ranges, "
+                "and they can change after a reboot). Check with:\n"
+                "  netsh int ipv4 show excludedportrange protocol=tcp\n"
+                "Pick a free port outside those ranges and put it in DATABASE_URL in .env "
+                f"(e.g. localhost:{DEFAULT_DEVDB_PORT}), or set DEVDB_PORT."
+            )
         sys.exit(f"pg_ctl start failed (exit {result.returncode}); see .devdb/postgres.log")
 
 
