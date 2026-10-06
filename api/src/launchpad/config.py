@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
     llm_max_retries: int = 3
+    # Max concurrent calls per provider in one process (queue the rest). Low values keep free
+    # tiers with small tokens-per-minute limits from rejecting parallel critique calls.
+    llm_max_concurrency: int = Field(default=4, ge=1, le=64)
     log_llm_payloads: bool = False  # store prompts/outputs on llm_calls (off by default)
     daily_spend_cap_usd: float = 2.00  # per workspace; overridable in workspace settings
     agent_run_token_budget: int = 200_000

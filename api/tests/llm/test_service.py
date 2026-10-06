@@ -190,3 +190,35 @@ def test_tool_and_schema_cannot_combine() -> None:
                 tools=[ToolSpec("t", "d", {"type": "object"})],
             )
         )
+
+
+class SlowClient(FakeClient):
+    def __init__(self) -> None:
+        super().__init__([])
+        self.active = self.peak = 0
+
+    async def _complete(self, model: str, messages: list[Message], **_: Any) -> RawCompletion:
+        import asyncio
+
+        self.active += 1
+        self.peak = max(self.peak, self.active)
+        await asyncio.sleep(0.05)
+        self.active -= 1
+        return raw('{"answer": "ok"}')
+
+
+async def test_concurrency_is_capped_per_provider(
+    env_models: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    monkeypatch.setattr(get_settings(), "llm_max_concurrency", 1)
+    ctx = await _ctx()
+    fake = SlowClient()
+    svc = LLMService(client_factory=lambda _p: fake)
+    prompt = load_prompt("smoke_test").render(topic="chai")
+    await asyncio.gather(
+        *(svc.generate(ctx, Purpose.WRITING, prompt, task="smoke", schema=Out) for _ in range(3))
+    )
+    assert fake.peak == 1
+    assert len(await _calls(ctx.workspace_id)) == 3

@@ -9,6 +9,7 @@ workspace's daily spend cap, calls the provider, and writes an `llm_calls` row â
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -169,6 +170,15 @@ async def _record(
 class LLMService:
     def __init__(self, client_factory: Any = get_client) -> None:
         self._client_factory = client_factory  # injectable for tests
+        self._limits: dict[str, asyncio.Semaphore] = {}
+
+    def _limit(self, provider: str) -> asyncio.Semaphore:
+        """Per-provider concurrency cap (LLM_MAX_CONCURRENCY). Excess calls wait their turn
+        instead of all hitting a tokens-per-minute limit at once."""
+        sem = self._limits.get(provider)
+        if sem is None:
+            sem = self._limits[provider] = asyncio.Semaphore(get_settings().llm_max_concurrency)
+        return sem
 
     def client(self, route: Route) -> LLMClient:
         client: LLMClient = self._client_factory(route.provider)
@@ -193,14 +203,15 @@ class LLMService:
         if temperature is None:
             temperature = get_settings().llm_temperature
         try:
-            result = await self.client(route).generate(
-                msgs,
-                model=route.model,
-                schema=schema,
-                tools=tools,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+            async with self._limit(route.provider):
+                result = await self.client(route).generate(
+                    msgs,
+                    model=route.model,
+                    schema=schema,
+                    tools=tools,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
         except LLMError as exc:
             exc.provider = exc.provider or route.provider
             exc.model = exc.model or route.model
@@ -233,18 +244,19 @@ class LLMService:
         await check_spend_cap(ctx)
         msgs = _messages(prompt, messages)
         try:
-            async for event in self.client(route).stream(
-                msgs,
-                model=route.model,
-                temperature=get_settings().llm_temperature,
-                max_tokens=max_tokens,
-            ):
-                if isinstance(event, StreamDone):
-                    await _record(
-                        ctx=ctx, route=route, purpose=purpose, task=task, prompt=prompt,
-                        result=event.result, error=None, messages=msgs,
-                    )  # fmt: skip
-                yield event
+            async with self._limit(route.provider):
+                async for event in self.client(route).stream(
+                    msgs,
+                    model=route.model,
+                    temperature=get_settings().llm_temperature,
+                    max_tokens=max_tokens,
+                ):
+                    if isinstance(event, StreamDone):
+                        await _record(
+                            ctx=ctx, route=route, purpose=purpose, task=task, prompt=prompt,
+                            result=event.result, error=None, messages=msgs,
+                        )  # fmt: skip
+                    yield event
         except LLMError as exc:
             await _record(
                 ctx=ctx, route=route, purpose=purpose, task=task, prompt=prompt,
@@ -259,7 +271,10 @@ class LLMService:
         dim = get_settings().embedding_dim
         started = datetime.now(UTC)
         try:
-            vectors = await self.client(route).embed(texts, model=route.model, task=task, dim=dim)
+            async with self._limit(route.provider):
+                vectors = await self.client(route).embed(
+                    texts, model=route.model, task=task, dim=dim
+                )
         except LLMError as exc:
             await _record(
                 ctx=ctx, route=route, purpose=Purpose.EMBEDDING, task=f"embed_{task}",
