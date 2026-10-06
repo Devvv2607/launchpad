@@ -143,6 +143,103 @@ export interface paths {
         patch: operations["workspaces_update_workspace"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/agent/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Runs */
+        get: operations["agent_list_runs"];
+        put?: never;
+        /** Create Run */
+        post: operations["agent_create_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/agent/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run */
+        get: operations["agent_get_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/agent/runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Run
+         * @description Stops a run. A running graph notices before its next LLM or tool call. Drafts it already
+         *     created stay as drafts.
+         */
+        post: operations["agent_cancel_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/agent/runs/{run_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume Run
+         * @description Apply the user's approve / edit / reject decisions and let the run finish.
+         */
+        post: operations["agent_resume_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/agent/runs/{run_id}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Run
+         * @description Replays the run's events, then follows live ones. Event types are documented in the
+         *     README. Ends after `run_finished`, or when the run is over and nothing new arrives.
+         */
+        get: operations["agent_stream_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/ai-settings": {
         parameters: {
             query?: never;
@@ -507,6 +604,11 @@ export interface components {
             };
         };
         /**
+         * AgentRunStatus
+         * @enum {string}
+         */
+        AgentRunStatus: "running" | "awaiting_approval" | "completed" | "failed" | "cancelled";
+        /**
          * AssetKind
          * @enum {string}
          */
@@ -769,7 +871,24 @@ export interface components {
          * ContentStatus
          * @enum {string}
          */
-        ContentStatus: "draft" | "in_review" | "approved" | "scheduled" | "published" | "failed";
+        ContentStatus: "draft" | "in_review" | "approved" | "scheduled" | "published" | "failed" | "rejected";
+        /** DecisionIn */
+        DecisionIn: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "approve" | "reject" | "edit";
+            /** Content */
+            content?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Item Id
+             * Format: uuid
+             */
+            item_id: string;
+        };
         /**
          * DocumentStatus
          * @enum {string}
@@ -785,6 +904,22 @@ export interface components {
             provider: string | null;
             /** Source */
             source: string;
+        };
+        /** EventOut */
+        EventOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            };
+            /** Seq */
+            seq: number;
+            /** Type */
+            type: string;
         };
         /** GenerateIn */
         GenerateIn: {
@@ -934,6 +1069,11 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** ResumeIn */
+        ResumeIn: {
+            /** Decisions */
+            decisions: components["schemas"]["DecisionIn"][];
+        };
         /** RetrievalOut */
         RetrievalOut: {
             /** Chunks */
@@ -977,6 +1117,89 @@ export interface components {
             score: number;
             /** Source */
             source: string;
+        };
+        /** RunCreateIn */
+        RunCreateIn: {
+            /** Campaign Id */
+            campaign_id?: string | null;
+            /** Message */
+            message: string;
+            /** Thread Id */
+            thread_id?: string | null;
+        };
+        /** RunDetailOut */
+        RunDetailOut: {
+            /** Cost Budget Usd */
+            cost_budget_usd: string;
+            /** Cost Usd */
+            cost_usd: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /** Events */
+            events: components["schemas"]["EventOut"][];
+            /** Final */
+            final: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Input */
+            input: string | null;
+            status: components["schemas"]["AgentRunStatus"];
+            /** Thread Id */
+            thread_id: string;
+            /** Title */
+            title: string | null;
+            /** Token Budget */
+            token_budget: number;
+            /** Tokens In */
+            tokens_in: number;
+            /** Tool Calls */
+            tool_calls: number;
+        };
+        /** RunOut */
+        RunOut: {
+            /** Cost Budget Usd */
+            cost_budget_usd: string;
+            /** Cost Usd */
+            cost_usd: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /** Final */
+            final: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Input */
+            input: string | null;
+            status: components["schemas"]["AgentRunStatus"];
+            /** Thread Id */
+            thread_id: string;
+            /** Title */
+            title: string | null;
+            /** Token Budget */
+            token_budget: number;
+            /** Tokens In */
+            tokens_in: number;
+            /** Tool Calls */
+            tool_calls: number;
         };
         /** SessionOut */
         SessionOut: {
@@ -1461,6 +1684,213 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspaceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_list_runs: {
+        parameters: {
+            query?: {
+                thread_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_create_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_cancel_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_resume_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResumeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_stream_run: {
+        parameters: {
+            query?: {
+                /** @description Replay events with seq greater than this */
+                after?: number;
+            };
+            header?: {
+                "last-event-id"?: string | null;
+            };
+            path: {
+                run_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-sent events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "text/event-stream": unknown;
                 };
             };
             /** @description Validation Error */
