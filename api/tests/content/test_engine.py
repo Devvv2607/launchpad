@@ -334,3 +334,42 @@ async def test_email_items_store_sanitised_html_and_text(
         html.startswith("<!doctype html>") and "<body" in html and '<meta name="viewport"' in html
     )
     assert item["body"] == "Monsoon chai is back"
+
+
+def test_brief_facts_extracts_prices_and_percentages() -> None:
+    from launchpad.content.engine import brief_facts
+
+    assert brief_facts("Monsoon drop: 5 tees, ₹699 each, bundle Rs. 1,899, 15% off") == [
+        ("₹699", "699"),
+        ("Rs. 1,899", "1899"),
+        ("15%", "15%"),
+    ]
+    assert brief_facts("New collection drop") == []
+
+
+async def test_missing_brief_price_triggers_a_revision(monkeypatch: pytest.MonkeyPatch) -> None:
+    brief = "Monsoon chai with pakoras, ₹160"
+    no_price = ig_variant("Offer-led", "Monsoon menu is here")
+    with_price = ig_variant(
+        "Offer-led", "Monsoon menu is here", caption="Masala chai + pakoras, ₹160. Drop in."
+    )
+    critiques: list[str] = []
+
+    def script(kind: str, prompt: str) -> str:
+        if kind == "write":
+            return drafts(no_price)
+        critiques.append(prompt)
+        return critique(9, with_price["content"])
+
+    use(monkeypatch, ScriptedLLM(script))
+    ws, ctx = await _ws()
+    async with get_sessionmaker()() as db:
+        ws = await db.get(Workspace, ws.id)
+        assert ws is not None
+        [v] = await write_content(
+            db, ws, ctx, channel=Channel.INSTAGRAM_POST, brief=brief, n_variants=1
+        )
+    assert "₹160" in critiques[0]  # the critic is told what's missing
+    assert len(v.iterations) == 2  # scores were 9, but the missing price forced a revision
+    assert "₹160" in v.content["caption"]
+    assert not [x for x in v.violations if x["rule"] == "brief_fact_missing"]

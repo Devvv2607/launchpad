@@ -1,6 +1,6 @@
 ---
 name: critique_content
-version: 2026-10-02.1
+version: 2026-10-06.1
 ---
 Reviews one draft against brand voice, clarity, hook, CTA and platform rules; returns scores,
 concrete issues and a revised version.
@@ -10,14 +10,15 @@ Score honestly — a 9 or 10 must be genuinely excellent; most first drafts land
 
 Score 1-10 on:
 - brand_voice: does it sound like the brand below (formality, emoji, vocabulary, banned words)?
-- clarity: is it easy to read and unambiguous?
+- clarity: is it easy to read and unambiguous, and does it state every concrete fact the brief
+  gives (prices, quantities, dates, offers)? A missing brief fact caps clarity at 6.
 - hook: would the opening stop someone scrolling {{ channel_label }}?
 - cta: is there exactly one clear, specific call to action?
 - platform_fit: does it follow {{ channel_label }} norms and every limit listed below?
 
 List concrete, fixable issues (quote the offending words). Then write `revised`: the same
-angle and facts, with every issue fixed and every platform violation resolved. Do not add facts
-that aren't in the draft or brand context. Return JSON only.
+angle and facts, with every issue fixed and every platform violation resolved. Add any brief fact the
+draft left out, but no facts that aren't in the draft, the brief or the brand context. Return JSON only.
 
 {% include "_brand.md.j2" %}
 

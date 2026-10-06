@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
@@ -27,6 +28,7 @@ from launchpad.content.platform_rules import (
     SLIDE_BODY_MAX,
     SLIDE_HEADLINE_MAX,
     THREAD_POSTS,
+    Violation,
     normalize_hashtags,
     validate,
 )
@@ -131,8 +133,38 @@ def _clean(channel: Channel, content: dict[str, Any]) -> dict[str, Any]:
     return content
 
 
-def _violations(channel: Channel, content: dict[str, Any]) -> list[dict[str, str]]:
-    return [asdict(v) for v in validate(channel, content)]
+_PRICE = re.compile(r"(?:₹|\bRs\.?|\bINR)\s?(\d+(?:,\d+)*(?:\.\d+)?)", re.I)
+_PERCENT = re.compile(r"(\d+(?:\.\d+)?)\s?%")
+BRIEF_FACT = "brief_fact_missing"
+
+
+def brief_facts(brief: str) -> list[tuple[str, str]]:
+    """Prices and percentages stated in the brief, as (as-written, normalised number)."""
+    facts = [(m.group(0), m.group(1).replace(",", "")) for m in _PRICE.finditer(brief)]
+    facts += [(m.group(0), m.group(1) + "%") for m in _PERCENT.finditer(brief)]
+    return list(dict.fromkeys(facts))
+
+
+def _missing_brief_facts(content: dict[str, Any], brief: str) -> list[Violation]:
+    text = json.dumps(content, ensure_ascii=False).replace(",", "").replace(" %", "%")
+    return [
+        Violation(
+            BRIEF_FACT, "warning", f"The brief says {shown} but this draft doesn't mention it."
+        )
+        for shown, needle in brief_facts(brief)
+        if needle not in text
+    ]
+
+
+def _violations(channel: Channel, content: dict[str, Any], brief: str = "") -> list[dict[str, str]]:
+    found = [*validate(channel, content), *_missing_brief_facts(content, brief)]
+    return [asdict(v) for v in found]
+
+
+def _must_fix(v: dict[str, str]) -> bool:
+    """Violations the review loop must resolve. Missing brief facts don't block approval
+    (a teaser may omit the price on purpose) but do trigger a revision."""
+    return v["severity"] == "error" or v["rule"] == BRIEF_FACT
 
 
 def main_text(channel: Channel, content: dict[str, Any]) -> str:
@@ -172,7 +204,7 @@ async def critique_content(
         brief=brief,
         angle=angle,
         draft_json=json.dumps(content, ensure_ascii=False, indent=1),
-        violations=[v["message"] for v in violations if v["severity"] == "error"],
+        violations=[v["message"] for v in violations if _must_fix(v)],
     )
     result, call_id = await llm.generate(
         ctx, Purpose.CRITIQUE, prompt, task="critique_content",
@@ -202,16 +234,14 @@ async def _review_loop(
         )  # fmt: skip
         variant.llm_call_ids.append(str(call_id))
         current.scores, current.issues = scores.model_dump(), issues
-        good = scores.minimum() >= GOOD_ENOUGH and not any(
-            v["severity"] == "error" for v in current.violations
-        )
+        good = scores.minimum() >= GOOD_ENOUGH and not any(_must_fix(v) for v in current.violations)
         await progress({"type": "step", "key": f"review_{variant.label}_{rnd}", "status": "done",
                         "label": f"Variant {variant.label}: avg {scores.average()}/10"})  # fmt: skip
         if good:
             break
         await progress({"type": "step", "key": f"revise_{variant.label}_{rnd}", "status": "done",
                         "label": f"Revised variant {variant.label}"})  # fmt: skip
-        variant.iterations.append(Iteration(rnd, revised, _violations(channel, revised)))
+        variant.iterations.append(Iteration(rnd, revised, _violations(channel, revised, brief)))
     final = variant.iterations[-1]
     variant.content, variant.violations = final.content, final.violations
 
@@ -270,7 +300,7 @@ async def write_content(
     variants: list[VariantResult] = []
     for i, v in enumerate(result.parsed.variants):
         content = _clean(channel, v.content.model_dump())
-        violations = _violations(channel, content)
+        violations = _violations(channel, content, brief)
         variants.append(
             VariantResult(
                 label=LABELS[i], angle=v.angle, hook=v.hook, rationale=v.rationale,
