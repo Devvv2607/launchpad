@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import os
+import sys
 import tempfile
 from collections.abc import AsyncIterator
 
@@ -16,6 +18,9 @@ os.environ.setdefault("TOKEN_ENCRYPTION_KEYS", Fernet.generate_key().decode())
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
 os.environ["STORAGE_BACKEND"] = "local"
 os.environ["STORAGE_LOCAL_DIR"] = os.path.join(tempfile.gettempdir(), "launchpad-test-storage")
+
+if sys.platform == "win32":  # psycopg (LangGraph's checkpointer) can't use the Proactor loop
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 import pytest
 from alembic import command
@@ -58,6 +63,10 @@ async def _clean_state() -> AsyncIterator[None]:
     tables = ", ".join(t.name for t in Base.metadata.sorted_tables)
     async with get_engine().begin() as conn:
         await conn.execute(text(f"TRUNCATE {tables} CASCADE"))
+        # LangGraph's checkpoint tables live outside our metadata (created by saver.setup()).
+        lg = await conn.scalar(text("SELECT to_regclass('checkpoints') IS NOT NULL"))
+        if lg:
+            await conn.execute(text("TRUNCATE checkpoints, checkpoint_writes, checkpoint_blobs"))
 
 
 @pytest.fixture
