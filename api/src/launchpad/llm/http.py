@@ -89,7 +89,12 @@ def map_status(
         return LLMTimeoutError(f"{provider} timed out.", **common)
     if status >= 500:
         return LLMProviderError(f"{provider} is having problems ({status}): {message}", **common)
-    return LLMBadRequestError(f"{provider} rejected the request ({status}): {message}", **common)
+    err_body = body.get("error") if isinstance(body, dict) else None
+    return LLMBadRequestError(
+        f"{provider} rejected the request ({status}): {message}",
+        details={"provider_error": err_body} if isinstance(err_body, dict) else None,
+        **common,
+    )
 
 
 async def post_json(

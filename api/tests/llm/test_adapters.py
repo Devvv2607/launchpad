@@ -17,6 +17,7 @@ from launchpad.llm.anthropic_client import AnthropicClient
 from launchpad.llm.base import LLMClient
 from launchpad.llm.errors import (
     LLMAuthError,
+    LLMBadRequestError,
     LLMModelNotFoundError,
     LLMOutputError,
     LLMProviderError,
@@ -383,3 +384,28 @@ async def test_long_retry_after_is_surfaced_not_waited() -> None:
     with pytest.raises(LLMRateLimitError) as exc:
         await h.client.generate(MSGS, model="openai/gpt-oss-120b")
     assert exc.value.retry_after_s == 3600 and h.sleeps == []
+
+
+async def test_groq_strict_schema_rejection_goes_through_repair() -> None:
+    rejected = json.dumps({"caption": "Monsoon chai"})  # missing hashtags
+    groq_400 = {
+        "error": {
+            "message": "Generated JSON does not match the expected schema.",
+            "type": "invalid_request_error",
+            "code": "json_validate_failed",
+            "failed_generation": rejected,
+        }
+    }
+    h = make("groq", [(400, groq_400, {}), (200, ok_body("groq", VALID), {})])
+    r = await h.client.generate(MSGS, model="openai/gpt-oss-120b", schema=Caption)
+    assert r.parsed is not None and r.attempts == 2
+    repair = h.requests[1]["messages"]
+    assert repair[-2] == {"role": "assistant", "content": rejected}
+    assert "hashtags" in repair[-1]["content"]  # the real validation error is fed back
+
+
+async def test_other_groq_400s_still_raise() -> None:
+    body = {"error": {"message": "context too long", "code": "context_length_exceeded"}}
+    h = make("groq", [(400, body, {})])
+    with pytest.raises(LLMBadRequestError):
+        await h.client.generate(MSGS, model="openai/gpt-oss-120b", schema=Caption)

@@ -10,7 +10,7 @@ import httpx
 
 from launchpad.llm.base import LLMClient, tool_result_content
 from launchpad.llm.capabilities import caps_for
-from launchpad.llm.errors import LLMOutputError, LLMRefusalError
+from launchpad.llm.errors import LLMBadRequestError, LLMOutputError, LLMRefusalError
 from launchpad.llm.http import DEFAULT_TIMEOUT, post_json, stream_sse
 from launchpad.llm.schema import inline_refs, strict_schema
 from launchpad.llm.types import Message, RawCompletion, ToolCall, ToolSpec, Usage
@@ -134,17 +134,26 @@ class OpenAICompatClient(LLMClient):
         temperature: float | None,
         max_tokens: int,
     ) -> RawCompletion:
-        body, rid = await post_json(
-            self._http,
-            f"{self.base_url}/chat/completions",
-            self._payload(
-                model, messages, json_schema=json_schema, tools=tools,
-                temperature=temperature, max_tokens=max_tokens,
-            ),
-            provider=self.provider,
-            model=model,
-            headers=self._headers,
-        )  # fmt: skip
+        try:
+            body, rid = await post_json(
+                self._http,
+                f"{self.base_url}/chat/completions",
+                self._payload(
+                    model, messages, json_schema=json_schema, tools=tools,
+                    temperature=temperature, max_tokens=max_tokens,
+                ),
+                provider=self.provider,
+                model=model,
+                headers=self._headers,
+            )  # fmt: skip
+        except LLMBadRequestError as exc:
+            rejected = _schema_rejection(exc) if json_schema is not None else None
+            if rejected is None:
+                raise
+            # Strict-mode providers (Groq) reject non-conforming JSON server-side. Hand the
+            # rejected output back so the normal validate-then-repair path handles it, instead
+            # of failing on the first imperfect generation. Usage isn't reported for rejections.
+            return RawCompletion(rejected, [], Usage(0, 0), exc.request_id, "schema_rejected")
         choices = body.get("choices") or []
         if not choices:
             raise LLMOutputError(
@@ -250,3 +259,13 @@ class OpenAIClient(OpenAICompatClient):
         )
         data = sorted(body.get("data", []), key=lambda d: d["index"])
         return [d["embedding"] for d in data]
+
+
+def _schema_rejection(exc: LLMBadRequestError) -> str | None:
+    """The provider's rejected generation, when a 400 means "output didn't match the schema"."""
+    details = exc.details if isinstance(exc.details, dict) else {}
+    err = details.get("provider_error") or {}
+    failed = err.get("failed_generation")
+    if err.get("code") == "json_validate_failed" and isinstance(failed, str):
+        return failed
+    return None
