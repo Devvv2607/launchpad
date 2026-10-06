@@ -173,7 +173,13 @@ async def planner(state: AgentState, runtime: Rt) -> dict[str, Any]:
             tools=[{"name": t.name, "description": t.description} for t in TOOLS.values()],
         )
         result, _ = await deps.llm.generate(
-            ctx, Purpose.PLANNING, prompt, task="agent_plan", schema=PlanOut, temperature=0.2
+            ctx,
+            Purpose.PLANNING,
+            prompt,
+            task="agent_plan",
+            schema=PlanOut,
+            temperature=0.2,
+            reasoning="low",
         )
     plan = result.parsed
     assert plan is not None
@@ -244,6 +250,7 @@ async def agent(state: AgentState, runtime: Rt) -> dict[str, Any]:
             task="agent_step",
             tools=specs,
             temperature=0.4,
+            reasoning="low",
             max_tokens=4096,
         )
     msg = Message("assistant", result.text, tool_calls=result.tool_calls)

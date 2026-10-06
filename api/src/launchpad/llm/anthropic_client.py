@@ -26,7 +26,7 @@ from launchpad.llm.errors import (
 )
 from launchpad.llm.http import retry_after_seconds
 from launchpad.llm.schema import inline_refs, strict_schema
-from launchpad.llm.types import Message, RawCompletion, ToolCall, ToolSpec, Usage
+from launchpad.llm.types import Message, RawCompletion, Reasoning, ToolCall, ToolSpec, Usage
 
 PROVIDER = "anthropic"
 
@@ -169,6 +169,7 @@ class AnthropicClient(LLMClient):
         tools: list[ToolSpec] | None,
         temperature: float | None,
         max_tokens: int,
+        reasoning: Reasoning | None = None,  # not mapped for this provider yet
     ) -> RawCompletion:
         params = self._params(
             model,

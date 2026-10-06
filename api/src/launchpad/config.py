@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # Max concurrent calls per provider in one process (queue the rest). Low values keep free
     # tiers with small tokens-per-minute limits from rejecting parallel critique calls.
     llm_max_concurrency: int = Field(default=4, ge=1, le=64)
+    # Optional ceiling on one request's input + max_tokens. Providers like Groq's free tier reject
+    # requests above their tokens-per-minute limit outright; set to that limit (e.g. 8000).
+    llm_max_request_tokens: int | None = Field(default=None, ge=2048)
     log_llm_payloads: bool = False  # store prompts/outputs on llm_calls (off by default)
     daily_spend_cap_usd: float = 2.00  # per workspace; overridable in workspace settings
     agent_run_token_budget: int = 200_000

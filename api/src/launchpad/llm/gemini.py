@@ -13,7 +13,7 @@ from launchpad.llm.base import LLMClient, tool_result_content
 from launchpad.llm.errors import LLMOutputError, LLMRefusalError
 from launchpad.llm.http import DEFAULT_TIMEOUT, post_json, stream_sse
 from launchpad.llm.schema import inline_refs
-from launchpad.llm.types import Message, RawCompletion, ToolCall, ToolSpec, Usage
+from launchpad.llm.types import Message, RawCompletion, Reasoning, ToolCall, ToolSpec, Usage
 
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 EMBED_BATCH = 100
@@ -189,6 +189,7 @@ class GeminiClient(LLMClient):
         tools: list[ToolSpec] | None,
         temperature: float | None,
         max_tokens: int,
+        reasoning: Reasoning | None = None,  # not mapped for this provider yet
     ) -> RawCompletion:
         payload = self._payload(
             messages,

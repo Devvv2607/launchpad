@@ -10,6 +10,7 @@ workspace's daily spend cap, calls the provider, and writes an `llm_calls` row â
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -25,12 +26,13 @@ from sqlalchemy import func, select
 from launchpad.config import get_settings
 from launchpad.db.session import get_sessionmaker
 from launchpad.llm.base import LLMClient
-from launchpad.llm.errors import LLMError, SpendCapExceededError
+from launchpad.llm.errors import LLMBadRequestError, LLMError, SpendCapExceededError
 from launchpad.llm.registry import AISettings, Route, get_client, resolve
 from launchpad.llm.types import (
     LLMResult,
     Message,
     Purpose,
+    Reasoning,
     StreamDone,
     StreamEvent,
     ToolSpec,
@@ -167,6 +169,43 @@ async def _record(
     return row.id
 
 
+MIN_OUTPUT_TOKENS = 1024
+
+
+def estimate_input_tokens(
+    msgs: list[Message], tools: list[ToolSpec] | None, schema: type[BaseModel] | None
+) -> int:
+    """Deliberately generous (3 chars per token) so a clamped request still fits."""
+    chars = sum(len(m.content) + 16 for m in msgs)
+    chars += sum(len(json.dumps(t.parameters)) + len(t.description) for t in tools or [])
+    if schema is not None:
+        chars += len(json.dumps(schema.model_json_schema()))
+    return chars // 3 + 1
+
+
+def fit_max_tokens(
+    msgs: list[Message],
+    tools: list[ToolSpec] | None,
+    schema: type[BaseModel] | None,
+    max_tokens: int,
+) -> int:
+    """Clamp max_tokens to LLM_MAX_REQUEST_TOKENS (input + output), when it's set. Some
+    providers (e.g. Groq's free tier, 8k tokens/minute) reject any request whose input plus
+    max_tokens exceeds the limit, so an unclamped request can never succeed."""
+    ceiling = get_settings().llm_max_request_tokens
+    if ceiling is None:
+        return max_tokens
+    room = ceiling - estimate_input_tokens(msgs, tools, schema)
+    if room < MIN_OUTPUT_TOKENS:
+        raise LLMBadRequestError(
+            f"This request (~{ceiling - room:,} input tokens) is too large for "
+            f"LLM_MAX_REQUEST_TOKENS={ceiling:,}.",
+            hint="Shorten the brief or brand documents, raise the limit, or use a provider "
+            "tier with a higher tokens-per-minute limit.",
+        )
+    return min(max_tokens, room)
+
+
 class LLMService:
     def __init__(self, client_factory: Any = get_client) -> None:
         self._client_factory = client_factory  # injectable for tests
@@ -196,13 +235,17 @@ class LLMService:
         tools: list[ToolSpec] | None = None,
         temperature: float | None = None,
         max_tokens: int = 4096,
+        reasoning: Reasoning | None = None,
     ) -> tuple[LLMResult[T], uuid.UUID]:
+        """`reasoning` hints how hard a reasoning model should think (ignored by models that
+        don't support it). Low effort suits reviews and planning steps, and saves tokens."""
         route = resolve(purpose, ctx.ai)
         await check_spend_cap(ctx)
         msgs = _messages(prompt, messages)
         if temperature is None:
             temperature = get_settings().llm_temperature
         try:
+            max_tokens = fit_max_tokens(msgs, tools, schema, max_tokens)
             async with self._limit(route.provider):
                 result = await self.client(route).generate(
                     msgs,
@@ -211,6 +254,7 @@ class LLMService:
                     tools=tools,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    reasoning=reasoning,
                 )
         except LLMError as exc:
             exc.provider = exc.provider or route.provider

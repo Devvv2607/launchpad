@@ -208,7 +208,7 @@ async def critique_content(
     )
     result, call_id = await llm.generate(
         ctx, Purpose.CRITIQUE, prompt, task="critique_content",
-        schema=critique_model(channel), temperature=0.3, max_tokens=8192,
+        schema=critique_model(channel), temperature=0.3, max_tokens=8192, reasoning="low",
     )  # fmt: skip
     assert result.parsed is not None
     revised = _clean(channel, result.parsed.revised.model_dump())
@@ -432,6 +432,7 @@ async def suggest_hashtags(
         task="suggest_hashtags",
         schema=HashtagBuckets,
         temperature=0.4,
+        reasoning="low",
     )
     assert result.parsed is not None
     buckets: dict[str, list[str]] = {}

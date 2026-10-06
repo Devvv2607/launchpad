@@ -10,6 +10,8 @@ from pydantic import BaseModel
 T = TypeVar("T", bound=BaseModel)
 
 Role = Literal["system", "user", "assistant", "tool"]
+# How hard a reasoning model should think. Only passed to models whose caps support it.
+Reasoning = Literal["low", "medium", "high"]
 
 
 class Purpose(StrEnum):

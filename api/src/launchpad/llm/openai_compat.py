@@ -13,7 +13,7 @@ from launchpad.llm.capabilities import caps_for
 from launchpad.llm.errors import LLMBadRequestError, LLMOutputError, LLMRefusalError
 from launchpad.llm.http import DEFAULT_TIMEOUT, post_json, stream_sse
 from launchpad.llm.schema import inline_refs, strict_schema
-from launchpad.llm.types import Message, RawCompletion, ToolCall, ToolSpec, Usage
+from launchpad.llm.types import Message, RawCompletion, Reasoning, ToolCall, ToolSpec, Usage
 
 JSON_MODE_INSTRUCTION = (
     "Respond with a single JSON object that conforms to this JSON Schema. "
@@ -83,10 +83,13 @@ class OpenAICompatClient(LLMClient):
         temperature: float | None,
         max_tokens: int,
         stream: bool = False,
+        reasoning: Reasoning | None = None,
     ) -> dict[str, Any]:
         caps = caps_for(self.provider, model)
         extra_system = None
         payload: dict[str, Any] = {"model": model, caps.max_tokens_field: max_tokens}
+        if reasoning is not None and caps.reasoning_effort:
+            payload["reasoning_effort"] = reasoning
         if temperature is not None and caps.temperature:
             payload["temperature"] = temperature
         if json_schema is not None:
@@ -133,6 +136,7 @@ class OpenAICompatClient(LLMClient):
         tools: list[ToolSpec] | None,
         temperature: float | None,
         max_tokens: int,
+        reasoning: Reasoning | None = None,
     ) -> RawCompletion:
         try:
             body, rid = await post_json(
@@ -140,7 +144,7 @@ class OpenAICompatClient(LLMClient):
                 f"{self.base_url}/chat/completions",
                 self._payload(
                     model, messages, json_schema=json_schema, tools=tools,
-                    temperature=temperature, max_tokens=max_tokens,
+                    temperature=temperature, max_tokens=max_tokens, reasoning=reasoning,
                 ),
                 provider=self.provider,
                 model=model,

@@ -21,6 +21,8 @@ class ModelCaps:
     structured: StructuredMode
     temperature: bool = True  # many reasoning models reject sampling params with a 400
     max_tokens_field: str = "max_tokens"
+    # Accepts `reasoning_effort` (low/medium/high). Groq gpt-oss: console.groq.com/docs/reasoning
+    reasoning_effort: bool = False
 
 
 _DEFAULTS: dict[str, ModelCaps] = {
@@ -32,7 +34,9 @@ _DEFAULTS: dict[str, ModelCaps] = {
 
 _OVERRIDES: dict[tuple[str, str], ModelCaps] = {
     # Groq: constrained decoding only on these families (console.groq.com/docs/structured-outputs).
-    ("groq", "openai/gpt-oss-"): ModelCaps("strict", max_tokens_field="max_completion_tokens"),
+    ("groq", "openai/gpt-oss-"): ModelCaps(
+        "strict", max_tokens_field="max_completion_tokens", reasoning_effort=True
+    ),
     ("groq", "qwen/qwen3"): ModelCaps("strict", max_tokens_field="max_completion_tokens"),
     # Anthropic: Haiku 4.5 still accepts temperature; Opus 5.5 / Sonnet 5.5 / Fable reject it.
     ("anthropic", "claude-haiku-4-5"): ModelCaps("native", temperature=True),

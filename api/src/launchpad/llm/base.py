@@ -37,6 +37,7 @@ from launchpad.llm.types import (
     LLMResult,
     Message,
     RawCompletion,
+    Reasoning,
     StreamDelta,
     StreamDone,
     StreamEvent,
@@ -90,6 +91,7 @@ class LLMClient(ABC):
         tools: list[ToolSpec] | None,
         temperature: float | None,
         max_tokens: int,
+        reasoning: Reasoning | None = None,
     ) -> RawCompletion: ...
 
     @abstractmethod
@@ -122,6 +124,7 @@ class LLMClient(ABC):
         tools: list[ToolSpec] | None = None,
         temperature: float | None = None,
         max_tokens: int = 4096,
+        reasoning: Reasoning | None = None,
     ) -> LLMResult[T]:
         if schema is not None and tools:
             raise ValueError("Structured output and tool calling can't be combined in one call.")
@@ -137,6 +140,7 @@ class LLMClient(ABC):
                     tools=tools,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    reasoning=reasoning,
                 ),
                 model=model,
             )

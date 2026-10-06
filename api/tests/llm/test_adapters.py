@@ -409,3 +409,12 @@ async def test_other_groq_400s_still_raise() -> None:
     h = make("groq", [(400, body, {})])
     with pytest.raises(LLMBadRequestError):
         await h.client.generate(MSGS, model="openai/gpt-oss-120b", schema=Caption)
+
+
+async def test_reasoning_effort_is_sent_only_to_models_that_support_it() -> None:
+    h = make("groq", [(200, ok_body("groq", VALID), {}), (200, ok_body("groq", VALID), {})])
+    await h.client.generate(MSGS, model="openai/gpt-oss-20b", schema=Caption, reasoning="low")
+    await h.client.generate(MSGS, model="llama-3.3-70b-versatile", schema=Caption, reasoning="low")
+    gpt_oss, llama = h.requests
+    assert gpt_oss["reasoning_effort"] == "low"
+    assert "reasoning_effort" not in llama

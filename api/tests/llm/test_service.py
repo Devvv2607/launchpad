@@ -222,3 +222,18 @@ async def test_concurrency_is_capped_per_provider(
     )
     assert fake.peak == 1
     assert len(await _calls(ctx.workspace_id)) == 3
+
+
+def test_max_tokens_is_clamped_to_the_request_ceiling(monkeypatch: pytest.MonkeyPatch) -> None:
+    from launchpad.llm.errors import LLMBadRequestError
+    from launchpad.llm.service import estimate_input_tokens, fit_max_tokens
+
+    msgs = [Message("system", "x" * 3000), Message("user", "y" * 3000)]
+    assert fit_max_tokens(msgs, None, None, 8192) == 8192  # no ceiling configured
+    monkeypatch.setattr(get_settings(), "llm_max_request_tokens", 8000)
+    fitted = fit_max_tokens(msgs, None, Out, 8192)
+    assert fitted + estimate_input_tokens(msgs, None, Out) <= 8000
+    assert fit_max_tokens(msgs, None, None, 1500) == 1500  # already fits: unchanged
+    huge = [Message("user", "z" * 30_000)]
+    with pytest.raises(LLMBadRequestError, match="LLM_MAX_REQUEST_TOKENS"):
+        fit_max_tokens(huge, None, None, 4096)
