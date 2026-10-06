@@ -30,6 +30,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { Schemas } from "@/lib/api/client";
 import { useBrandKit, useWorkspace } from "@/lib/api/hooks";
+import { BRIEF_EXAMPLES, GENERIC_EXAMPLES } from "@/lib/brief-examples";
+import { useHydrated } from "@/lib/use-hydrated";
 import { postSSE } from "@/lib/api/stream";
 import { cn } from "@/lib/utils";
 
@@ -43,14 +45,6 @@ const CHANNELS: { value: Channel; label: string; icon: typeof Camera }[] = [
   { value: "email", label: "Email", icon: Mail },
 ];
 
-const EXAMPLES = [
-  "Diwali offer: 15% off gift hampers until 2 Nov",
-  "New monsoon menu launch",
-  "Hiring post: we need two baristas",
-  "Weekend event announcement",
-  "Thank regular customers",
-];
-
 type Step = { key: string; label: string; status: "running" | "done" };
 type DraftVariant = { label: string; angle: string; content: Record<string, unknown> };
 type Item = Schemas["ContentItemOut"];
@@ -58,6 +52,7 @@ type Item = Schemas["ContentItemOut"];
 export default function CreateContentPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const ws = useWorkspace(workspaceId);
+  const hydrated = useHydrated();
   const kit = useBrandKit(workspaceId);
   const [channel, setChannel] = useState<Channel>("instagram_post");
   const [brief, setBrief] = useState("");
@@ -70,6 +65,8 @@ export default function CreateContentPage() {
   const [error, setError] = useState<unknown>(null);
   const [resultChannel, setResultChannel] = useState<Channel>(channel);
   const abort = useRef<AbortController | null>(null);
+
+  const examples = ws.data ? BRIEF_EXAMPLES[ws.data.industry] : GENERIC_EXAMPLES;
 
   const brand = {
     name: ws.data?.name ?? "Your business",
@@ -161,11 +158,12 @@ export default function CreateContentPage() {
               id="brief"
               rows={5}
               value={brief}
+              disabled={!hydrated}
               onChange={(e) => setBrief(e.target.value)}
               placeholder="What's happening, who it's for, and anything that must be mentioned (prices, dates, offers)."
             />
             <div className="flex flex-wrap gap-1.5">
-              {EXAMPLES.map((ex) => (
+              {examples.map((ex) => (
                 <button
                   key={ex}
                   type="button"

@@ -16,6 +16,7 @@ import { useBrandKit, useCreateWorkspace } from "@/lib/api/hooks";
 import { INDUSTRY_LABELS, type Industry } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { rememberWorkspace } from "@/lib/workspace";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const STEPS = ["Business", "Industry", "Brand", "Channels"] as const;
 
@@ -47,6 +48,7 @@ const EMPTY: Draft = {
 };
 
 export default function OnboardingPage() {
+  const hydrated = useHydrated();
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -168,209 +170,217 @@ export default function OnboardingPage() {
       </header>
 
       <main className="mx-auto max-w-3xl px-6 py-12">
-        {step === 0 && (
-          <section className="space-y-6">
-            <StepTitle
-              title="Tell us about the business"
-              body="The agent uses this in every piece of content it writes, so be specific."
-            />
-            <Field id="name" label="Business name" error={fieldErrors.name}>
-              <Input id="name" value={draft.name} onChange={set("name")} autoFocus />
-            </Field>
-            <Field
-              id="description"
-              label="What do you sell?"
-              hint="One or two sentences, e.g. “Specialty coffee and all-day brunch in Bandra.”"
-            >
-              <Textarea
-                id="description"
-                rows={3}
-                value={draft.description}
-                onChange={set("description")}
-              />
-            </Field>
-            <div className="grid gap-6 sm:grid-cols-2">
-              <Field
-                id="locations"
-                label="Where are you?"
-                hint="Separate cities with commas."
-                error={fieldErrors.locations}
-              >
-                <Input
-                  id="locations"
-                  placeholder="Mumbai, Pune"
-                  value={draft.locations}
-                  onChange={set("locations")}
-                />
-              </Field>
-              <Field id="website" label="Website (optional)" error={fieldErrors.website}>
-                <Input
-                  id="website"
-                  type="url"
-                  placeholder="https://"
-                  value={draft.website}
-                  onChange={set("website")}
-                />
-              </Field>
-            </div>
-            <Field id="audience" label="Who are your customers?" error={fieldErrors.audience}>
-              <Textarea
-                id="audience"
-                rows={3}
-                placeholder="College students and young professionals who work from cafés"
-                value={draft.audience}
-                onChange={set("audience")}
-              />
-            </Field>
-          </section>
-        )}
-
-        {step === 1 && (
-          <section className="space-y-6">
-            <StepTitle
-              title="Pick your industry"
-              body="This tunes hashtags, posting times and the kind of content that works."
-            />
-            <div role="radiogroup" aria-label="Industry" className="grid gap-3 sm:grid-cols-3">
-              {(Object.keys(INDUSTRY_LABELS) as Industry[]).map((key) => {
-                const selected = draft.industry === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => setDraft((d) => ({ ...d, industry: key }))}
-                    className={cn(
-                      "flex flex-col items-start justify-start rounded-lg border bg-card p-4 text-left transition-colors hover:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                      selected && "border-foreground ring-1 ring-foreground",
-                    )}
-                  >
-                    <span className="block font-medium">{INDUSTRY_LABELS[key].label}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      {INDUSTRY_LABELS[key].hint}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {step === 2 && (
-          <section className="space-y-6">
-            <StepTitle
-              title="Set your brand basics"
-              body="Upload your logo and we'll suggest colours from it. You can refine all of this later in the brand kit."
-            />
-            {workspaceId && (
-              <LogoPanel
-                workspaceId={workspaceId}
-                logoUrl={kit.data?.logo_url}
-                palette={kit.data?.logo_palette ?? []}
-                hasColors={Boolean(draft.primary_color || draft.secondary_color)}
-                onApply={(role, hex) =>
-                  setDraft((d) =>
-                    role === "accent" ? { ...d, accent: hex } : { ...d, [role]: hex },
-                  )
-                }
-                onApplyAll={(palette) => {
-                  const by = (r: string) => palette.find((p) => p.role === r)?.hex;
-                  setDraft((d) => ({
-                    ...d,
-                    primary_color: by("primary") ?? d.primary_color,
-                    secondary_color: by("secondary") ?? d.secondary_color,
-                    accent: by("accent") ?? d.accent,
-                  }));
-                }}
-              />
-            )}
-            <div className="grid gap-6 sm:grid-cols-2">
-              <ColorField
-                label="Primary colour"
-                value={draft.primary_color}
-                onChange={(v) => setDraft((d) => ({ ...d, primary_color: v }))}
-              />
-              <ColorField
-                label="Secondary colour"
-                value={draft.secondary_color}
-                onChange={(v) => setDraft((d) => ({ ...d, secondary_color: v }))}
-              />
-            </div>
-            <Field
-              id="voice"
-              label="How does your brand sound?"
-              hint="e.g. “Warm and a little cheeky. Talks like a friend who knows good coffee. Never uses corporate jargon.”"
-            >
-              <Textarea id="voice" rows={4} value={draft.voice_tone} onChange={set("voice_tone")} />
-            </Field>
-          </section>
-        )}
-
-        {step === 3 && (
-          <section className="space-y-6">
-            <StepTitle
-              title="Connect your channels"
-              body="Optional. Without a connection, approved content is exported as a ready-to-post bundle you can download."
-            />
-            <ul className="divide-y rounded-lg border bg-card">
-              {[
-                { icon: Camera, name: "Instagram", note: "Business or creator account" },
-                {
-                  icon: BriefcaseBusiness,
-                  name: "LinkedIn",
-                  note: "Personal profile or company page",
-                },
-                { icon: Mail, name: "Email", note: "Send campaigns through Resend" },
-              ].map((c) => (
-                <li key={c.name} className="flex items-center gap-4 p-4">
-                  <c.icon className="size-5 text-muted-foreground" aria-hidden />
-                  <div className="flex-1">
-                    <p className="font-medium">{c.name}</p>
-                    <p className="text-sm text-muted-foreground">{c.note}</p>
-                  </div>
-                  <Button variant="outline" size="sm" disabled>
-                    Not available yet
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {hasUnplacedError && <ErrorState className="mt-6" error={error} />}
-
-        <div className="mt-10 flex items-center justify-between">
-          {step > 0 && step < 3 ? (
-            <Button variant="ghost" onClick={() => setStep((s) => s - 1)}>
-              Back
-            </Button>
-          ) : (
-            <span />
-          )}
+        {/* Disabled until hydrated so early keystrokes can't be silently discarded. */}
+        <fieldset disabled={!hydrated} className="contents">
           {step === 0 && (
-            <Button onClick={() => setStep(1)} disabled={!canContinue}>
-              Continue
-            </Button>
+            <section className="space-y-6">
+              <StepTitle
+                title="Tell us about the business"
+                body="The agent uses this in every piece of content it writes, so be specific."
+              />
+              <Field id="name" label="Business name" error={fieldErrors.name}>
+                <Input id="name" value={draft.name} onChange={set("name")} autoFocus />
+              </Field>
+              <Field
+                id="description"
+                label="What do you sell?"
+                hint="One or two sentences, e.g. “Specialty coffee and all-day brunch in Bandra.”"
+              >
+                <Textarea
+                  id="description"
+                  rows={3}
+                  value={draft.description}
+                  onChange={set("description")}
+                />
+              </Field>
+              <div className="grid gap-6 sm:grid-cols-2">
+                <Field
+                  id="locations"
+                  label="Where are you?"
+                  hint="Separate cities with commas."
+                  error={fieldErrors.locations}
+                >
+                  <Input
+                    id="locations"
+                    placeholder="Mumbai, Pune"
+                    value={draft.locations}
+                    onChange={set("locations")}
+                  />
+                </Field>
+                <Field id="website" label="Website (optional)" error={fieldErrors.website}>
+                  <Input
+                    id="website"
+                    type="url"
+                    placeholder="https://"
+                    value={draft.website}
+                    onChange={set("website")}
+                  />
+                </Field>
+              </div>
+              <Field id="audience" label="Who are your customers?" error={fieldErrors.audience}>
+                <Textarea
+                  id="audience"
+                  rows={3}
+                  placeholder="College students and young professionals who work from cafés"
+                  value={draft.audience}
+                  onChange={set("audience")}
+                />
+              </Field>
+            </section>
           )}
+
           {step === 1 && (
-            <Button onClick={saveWorkspace} disabled={!canContinue || saving}>
-              {saving
-                ? "Creating workspace…"
-                : workspaceId
-                  ? "Save and continue"
-                  : "Create workspace"}
-            </Button>
+            <section className="space-y-6">
+              <StepTitle
+                title="Pick your industry"
+                body="This tunes hashtags, posting times and the kind of content that works."
+              />
+              <div role="radiogroup" aria-label="Industry" className="grid gap-3 sm:grid-cols-3">
+                {(Object.keys(INDUSTRY_LABELS) as Industry[]).map((key) => {
+                  const selected = draft.industry === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setDraft((d) => ({ ...d, industry: key }))}
+                      className={cn(
+                        "flex flex-col items-start justify-start rounded-lg border bg-card p-4 text-left transition-colors hover:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                        selected && "border-foreground ring-1 ring-foreground",
+                      )}
+                    >
+                      <span className="block font-medium">{INDUSTRY_LABELS[key].label}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {INDUSTRY_LABELS[key].hint}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
           )}
+
           {step === 2 && (
-            <Button onClick={saveBrand} disabled={saving}>
-              {saving ? "Saving…" : "Save and continue"}
-            </Button>
+            <section className="space-y-6">
+              <StepTitle
+                title="Set your brand basics"
+                body="Upload your logo and we'll suggest colours from it. You can refine all of this later in the brand kit."
+              />
+              {workspaceId && (
+                <LogoPanel
+                  workspaceId={workspaceId}
+                  logoUrl={kit.data?.logo_url}
+                  palette={kit.data?.logo_palette ?? []}
+                  hasColors={Boolean(draft.primary_color || draft.secondary_color)}
+                  onApply={(role, hex) =>
+                    setDraft((d) =>
+                      role === "accent" ? { ...d, accent: hex } : { ...d, [role]: hex },
+                    )
+                  }
+                  onApplyAll={(palette) => {
+                    const by = (r: string) => palette.find((p) => p.role === r)?.hex;
+                    setDraft((d) => ({
+                      ...d,
+                      primary_color: by("primary") ?? d.primary_color,
+                      secondary_color: by("secondary") ?? d.secondary_color,
+                      accent: by("accent") ?? d.accent,
+                    }));
+                  }}
+                />
+              )}
+              <div className="grid gap-6 sm:grid-cols-2">
+                <ColorField
+                  label="Primary colour"
+                  value={draft.primary_color}
+                  onChange={(v) => setDraft((d) => ({ ...d, primary_color: v }))}
+                />
+                <ColorField
+                  label="Secondary colour"
+                  value={draft.secondary_color}
+                  onChange={(v) => setDraft((d) => ({ ...d, secondary_color: v }))}
+                />
+              </div>
+              <Field
+                id="voice"
+                label="How does your brand sound?"
+                hint="e.g. “Warm and a little cheeky. Talks like a friend who knows good coffee. Never uses corporate jargon.”"
+              >
+                <Textarea
+                  id="voice"
+                  rows={4}
+                  value={draft.voice_tone}
+                  onChange={set("voice_tone")}
+                />
+              </Field>
+            </section>
           )}
-          {step === 3 && workspaceId && (
-            <Button onClick={() => router.replace(`/w/${workspaceId}`)}>Go to dashboard</Button>
+
+          {step === 3 && (
+            <section className="space-y-6">
+              <StepTitle
+                title="Connect your channels"
+                body="Optional. Without a connection, approved content is exported as a ready-to-post bundle you can download."
+              />
+              <ul className="divide-y rounded-lg border bg-card">
+                {[
+                  { icon: Camera, name: "Instagram", note: "Business or creator account" },
+                  {
+                    icon: BriefcaseBusiness,
+                    name: "LinkedIn",
+                    note: "Personal profile or company page",
+                  },
+                  { icon: Mail, name: "Email", note: "Send campaigns through Resend" },
+                ].map((c) => (
+                  <li key={c.name} className="flex items-center gap-4 p-4">
+                    <c.icon className="size-5 text-muted-foreground" aria-hidden />
+                    <div className="flex-1">
+                      <p className="font-medium">{c.name}</p>
+                      <p className="text-sm text-muted-foreground">{c.note}</p>
+                    </div>
+                    <Button variant="outline" size="sm" disabled>
+                      Not available yet
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
-        </div>
+
+          {hasUnplacedError && <ErrorState className="mt-6" error={error} />}
+
+          <div className="mt-10 flex items-center justify-between">
+            {step > 0 && step < 3 ? (
+              <Button variant="ghost" onClick={() => setStep((s) => s - 1)}>
+                Back
+              </Button>
+            ) : (
+              <span />
+            )}
+            {step === 0 && (
+              <Button onClick={() => setStep(1)} disabled={!canContinue}>
+                Continue
+              </Button>
+            )}
+            {step === 1 && (
+              <Button onClick={saveWorkspace} disabled={!canContinue || saving}>
+                {saving
+                  ? "Creating workspace…"
+                  : workspaceId
+                    ? "Save and continue"
+                    : "Create workspace"}
+              </Button>
+            )}
+            {step === 2 && (
+              <Button onClick={saveBrand} disabled={saving}>
+                {saving ? "Saving…" : "Save and continue"}
+              </Button>
+            )}
+            {step === 3 && workspaceId && (
+              <Button onClick={() => router.replace(`/w/${workspaceId}`)}>Go to dashboard</Button>
+            )}
+          </div>
+        </fieldset>
       </main>
     </div>
   );
