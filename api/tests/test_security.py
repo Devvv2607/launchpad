@@ -51,3 +51,26 @@ def test_log_redaction() -> None:
     assert "[REDACTED]" in out["event"]
     assert out["payload"]["nested"] == ["[REDACTED]"]
     assert out["user_id"] == event["user_id"]
+
+
+def test_token_counts_are_logged_but_token_values_are_not() -> None:
+    from launchpad.logging import redact_processor
+
+    out = redact_processor(
+        None,
+        "info",
+        {
+            "tokens_in": 812,
+            "tokens_out": 140,
+            "max_tokens": 4096,
+            "token_budget": 200_000,
+            "access_token": "abc",
+            "refresh_token": "def",
+            "token": "ghi",
+            "api_key": "jkl",
+        },
+    )
+    assert out["tokens_in"] == 812 and out["tokens_out"] == 140
+    assert out["max_tokens"] == 4096 and out["token_budget"] == 200_000
+    for k in ("access_token", "refresh_token", "token", "api_key"):
+        assert out[k] == "[REDACTED]", k

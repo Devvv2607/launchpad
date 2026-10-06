@@ -13,10 +13,16 @@ import structlog
 _SENSITIVE_KEYS = re.compile(
     r"(pass(word)?|secret|token|api[_-]?key|authorization|cookie|refresh|access_token)", re.I
 )
+# Usage counters that merely contain the word "token" (never secrets).
+_SAFE_KEYS = re.compile(r"(tokens(_\w+)?|\w+_tokens|token_(budget|count)s?)", re.I)
 # Bearer tokens / common key shapes that might leak inside free-text messages.
 _SENSITIVE_VALUES = re.compile(
     r"(Bearer\s+[A-Za-z0-9._\-]+|sk-[A-Za-z0-9_\-]{10,}|gsk_[A-Za-z0-9]{10,}|AIza[0-9A-Za-z_\-]{20,})"
 )
+
+
+def _sensitive(key: str) -> bool:
+    return bool(_SENSITIVE_KEYS.search(key)) and not _SAFE_KEYS.fullmatch(key)
 
 
 def _redact(value: Any, depth: int = 0) -> Any:
@@ -24,7 +30,7 @@ def _redact(value: Any, depth: int = 0) -> Any:
         return value
     if isinstance(value, dict):
         return {
-            k: "[REDACTED]" if _SENSITIVE_KEYS.search(str(k)) else _redact(v, depth + 1)
+            k: "[REDACTED]" if _sensitive(str(k)) else _redact(v, depth + 1)
             for k, v in value.items()
         }
     if isinstance(value, list | tuple):
@@ -38,7 +44,7 @@ def redact_processor(
     _logger: Any, _method: str, event_dict: MutableMapping[str, Any]
 ) -> MutableMapping[str, Any]:
     for key in list(event_dict.keys()):
-        if _SENSITIVE_KEYS.search(key):
+        if _sensitive(key):
             event_dict[key] = "[REDACTED]"
         else:
             event_dict[key] = _redact(event_dict[key])
