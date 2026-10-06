@@ -229,6 +229,7 @@ def test_max_tokens_is_clamped_to_the_request_ceiling(monkeypatch: pytest.Monkey
     from launchpad.llm.service import estimate_input_tokens, fit_max_tokens
 
     msgs = [Message("system", "x" * 3000), Message("user", "y" * 3000)]
+    monkeypatch.setattr(get_settings(), "llm_max_request_tokens", None)
     assert fit_max_tokens(msgs, None, None, 8192) == 8192  # no ceiling configured
     monkeypatch.setattr(get_settings(), "llm_max_request_tokens", 8000)
     fitted = fit_max_tokens(msgs, None, Out, 8192)

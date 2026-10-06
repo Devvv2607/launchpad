@@ -418,3 +418,21 @@ async def test_reasoning_effort_is_sent_only_to_models_that_support_it() -> None
     gpt_oss, llama = h.requests
     assert gpt_oss["reasoning_effort"] == "low"
     assert "reasoning_effort" not in llama
+
+
+def test_strict_schema_keeps_fields_named_title_or_default() -> None:
+    from pydantic import BaseModel as _BM
+
+    from launchpad.agent.graph import PlanOut
+    from launchpad.llm.schema import strict_schema
+
+    class Odd(_BM):
+        title: str
+        default: int
+
+    s = strict_schema(Odd.model_json_schema())
+    assert set(s["properties"]) == {"title", "default"}
+    assert s["required"] == ["title", "default"]
+    assert "title" not in s  # the schema's own title annotation is still dropped
+    step = strict_schema(PlanOut.model_json_schema())["properties"]["steps"]["items"]
+    assert step["required"] == ["title", "tool"]  # this field was missing (planner regression)

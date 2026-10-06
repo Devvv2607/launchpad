@@ -43,7 +43,13 @@ def strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
 
     def walk(node: Any) -> Any:
         if isinstance(node, dict):
-            node = {k: walk(v) for k, v in node.items() if k not in {"default", "title"}}
+            # Drop the `title`/`default` *annotations*, but never a property that happens to be
+            # named "title" or "default": keys inside `properties` are field names.
+            node = {
+                k: ({name: walk(sub) for name, sub in v.items()} if k == "properties" else walk(v))
+                for k, v in node.items()
+                if k not in {"default", "title"}
+            }
             if node.get("type") == "object" and "properties" in node:
                 node["required"] = list(node["properties"].keys())
                 node["additionalProperties"] = False
