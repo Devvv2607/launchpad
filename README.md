@@ -2,15 +2,16 @@
 
 An agentic AI marketing platform for small businesses. It plans campaigns, writes channel-specific content, designs posters and schedules everything. Nothing goes out without a human approving it.
 
-> **Status:** Phase 2 of 7. On top of the Phase 1 scaffold, you now get:
+> **Status:** Phase 3 of 7. On top of the Phase 1 scaffold you get:
 > - a provider-neutral LLM layer (Gemini, Groq, OpenAI, Anthropic)
 > - brand knowledge (RAG over documents and websites)
 > - a content engine that writes, critiques and revises
 > - the create-content studio
 > - per-workspace AI routing, a spend cap and usage tracking
-> - an evaluation harness
+> - **a LangGraph marketing agent**: plans, researches (with sources), builds validated campaign calendars and writes drafts, then pauses for your approval. It runs in the worker, checkpoints to Postgres and streams every step to a two-pane chat UI.
+> - an evaluation harness for content and agent behaviour
 >
-> The LangGraph agent, posters and publishing come in later phases.
+> Images and posters (Phase 4) and scheduling/publishing (Phase 5) come next. Their agent tools exist as explicit "not available yet" stubs.
 
 ## Architecture
 
@@ -22,16 +23,19 @@ flowchart LR
     A --> CE[Content engine<br/>write → validate → critique/revise]
     CE --> CTX[Brand context<br/>kit + voice profile + industry]
     CTX --> RAG[Retrieval<br/>pgvector cosine + threshold]
-    CE --> LLM[LLMService<br/>routing · spend cap · llm_calls log]
+    CE --> LLM[LLMService<br/>routing · spend cap · concurrency · llm_calls log]
     RAG --> LLM
     LLM --> AD{{Adapters}}
   end
   AD --> G[Gemini] & Q[Groq] & O[OpenAI] & C[Anthropic]
   A --> P[(Postgres + pgvector)]
   A -->|job row + poke| R[(Redis)]
-  K[ARQ worker<br/>ingest docs · later: publish] --> R
+  K[ARQ worker<br/>agent runs · doc ingestion] --> R
   K -->|claims due jobs<br/>FOR UPDATE SKIP LOCKED| P
-  K --> LLM
+  K --> AG[LangGraph agent<br/>checkpoints + agent_events] --> CE
+  AG --> LLM
+  AG --> T[Tavily research]
+  A -.->|agent stream replays<br/>agent_events| P
   A --> S[(S3 / MinIO / local)]
   K --> S
 ```
@@ -39,6 +43,71 @@ flowchart LR
 - **web/**: Next.js 16, TypeScript, Tailwind v4, shadcn/ui. The typed API client is generated from the backend's OpenAPI spec.
 - **api/**: FastAPI, Pydantic v2, SQLAlchemy 2 (async), Alembic. It also holds the shared `launchpad` domain package.
 - **worker/**: an ARQ worker. `ScheduledJob` rows in Postgres are the source of truth, and Redis is only the transport. So jobs survive restarts and can't double-run.
+
+## The agent
+
+```mermaid
+flowchart LR
+  S((start)) --> PL[planner<br/>intent + step plan]
+  PL -->|off-topic / harmful| E((end))
+  PL --> AG[agent<br/>native tool calling]
+  AG -->|tool calls| TL[tools<br/>validate args · run · cap]
+  TL --> RF[reflect<br/>progress · budget · cap]
+  RF -->|continue| AG
+  AG -->|drafts to review| AP[approval<br/>interrupt]
+  RF -->|stop + drafts| AP
+  AG -->|done| E
+  RF -->|stop| E
+  AP -->|resume with your decisions| E
+```
+
+A run starts when you send a message (`POST /agent/runs`). The API only records the run and enqueues a durable job. The **worker** executes the graph, and LangGraph's Postgres checkpointer saves state after every node. Every step is appended to `agent_events` (for the live stream) and `agent_messages` (the trace).
+
+| Tool | What it does |
+| --- | --- |
+| `get_brand_context` | Brand kit, voice and retrieved facts from the brand's own documents (with sources) |
+| `research_trends` | Tavily web search (India) returning source URLs to cite, plus an Indian festival calendar for the next 12 months (dates from the DoPT 2027 holiday list and panchang sources; moon-dependent dates flagged) |
+| `plan_campaign` | Goal + dates + channels → a dated calendar, validated: dates in range, allowed channels, per-day limit, spread, festival timing |
+| `write_content`, `build_email` | The Phase 2 content engine (write → validate → critique/revise). Results are saved as **drafts** |
+| `critique_content`, `suggest_hashtags` | Review or improve an existing draft; hashtag buckets |
+| `get_analytics` | Returns "no data" until Phase 6 connects real insights. Never estimates |
+| `generate_image`, `create_poster`, `schedule_content` | Stubs that say plainly they arrive in Phase 4/5 |
+
+**Guardrails**
+- At most `AGENT_MAX_TOOL_CALLS` (default 25) tool calls per run.
+- Per-run token and cost budgets.
+- Off-topic and harmful requests are refused by the planner before any tool runs.
+- **No tool can publish, post, send or schedule.** Each tool declares `outbound`, and `assert_no_outbound()` fails at import if any tool sets it. Approval is applied only from your explicit decisions.
+
+### Agent API
+
+| Endpoint | |
+| --- | --- |
+| `POST /api/v1/workspaces/{ws}/agent/runs` | `{message, thread_id?}`: starts a run (a new conversation, or continues `thread_id`). 409 if that conversation already has a run in progress or waiting for review. |
+| `GET …/agent/runs?thread_id=` | Run history |
+| `GET …/agent/runs/{id}` | A run plus its full event log |
+| `GET …/agent/runs/{id}/stream?after=N` | SSE: replays events after `N` (or `Last-Event-ID`), then follows live ones. Ends after `run_finished`. |
+| `POST …/agent/runs/{id}/resume` | `{decisions: [{item_id, action, content?}]}`, where `action` is approve, reject or edit. Only while waiting for approval; a second submit gets 409. |
+| `POST …/agent/runs/{id}/cancel` | Stops the run before its next model or tool call. Drafts already written stay drafts. |
+
+### Agent event stream
+
+Every event has an SSE `id:` (its sequence number in the run), so clients resume exactly where they left off, including across an API restart.
+
+| Event | Data |
+| --- | --- |
+| `run_started` | `run_id`, `thread_id`, `message` |
+| `plan` | `goal`, `steps[{id, title, tool, status}]`, re-sent as steps complete; or `{refused, intent, reply}` |
+| `step_started` | `key`, `label` (e.g. "Thinking", "Researching trends…", "Resuming after an interruption") |
+| `tool_call` | `id`, `tool`, `input` |
+| `tool_result` | `id`, `tool`, `ok`, `duration_ms`, `output` (truncated for display) |
+| `token` | `text`, `final`: model text for this turn |
+| `research` | `query`, `sources[{title, url}]` |
+| `item_created` | `item_id`, `label`, `channel`, `angle`, `preview`, `avg_score`, `blocked_by_platform_rules` |
+| `approval_required` | `items[{item_id, channel, label, angle, preview, blocked}]`, `final`. The run pauses here. |
+| `approvals_applied` | `approved`, `rejected`, `edited`, `skipped` |
+| `error` | `code`, `message`, `hint`, `provider?`, `model?` |
+| `run_finished` | `status` (`finished`, `refused`, `tool_cap`, `budget_exceeded`, `cancelled`, `failed`), `final?`, `item_ids?`, `tokens`, `cost_usd`, `cost_complete` (false when a model's price is unknown; the UI then says so instead of showing $0) |
 
 ## Quick start (Docker)
 
@@ -136,6 +205,10 @@ See [`.env.example`](.env.example) for the full list. The important ones:
 | `RAG_MIN_SCORE` | Retrieved passages below this cosine similarity are dropped (default 0.55) |
 | `DAILY_SPEND_CAP_USD` | Per-workspace daily AI budget (overridable in Settings → AI) |
 | `LLM_MAX_RETRIES` | Retries on 429/5xx/timeouts only (default 3) |
+| `LLM_MAX_CONCURRENCY` | Max simultaneous calls per provider per process (default 4). Use 1 on Groq's free tier (8k tokens/min). |
+| `AGENT_MAX_TOOL_CALLS` | Tool calls allowed per agent run (default 25) |
+| `AGENT_RUN_TOKEN_BUDGET`, `AGENT_RUN_COST_BUDGET_USD` | Per-run budgets; the agent stops and says so when either is reached |
+| `TAVILY_API_KEY` | Web research. Without it the agent still gets the festival calendar and says research isn't configured. |
 | `LOG_LLM_PAYLOADS` | Store prompts and outputs on `llm_calls` rows (default `false`) |
 | `CORS_ORIGINS` | Comma-separated allowed origins |
 
@@ -144,10 +217,18 @@ See [`.env.example`](.env.example) for the full list. The important ones:
 `api/evals/` runs the real pipeline against **3 fixture businesses** (a Bandra café, a B2B SaaS company, a Koramangala strength studio). Each has a brand kit and a brand document, ingested through the same RAG code. The run covers **10 briefs** across Instagram posts and carousels, LinkedIn, X and email.
 
 ```bash
-make eval p=gemini                                    # or: py scripts	asks.py eval gemini
+make eval p=gemini                                    # or: py scripts\tasks.py eval gemini
 make eval p=groq a="--model openai/gpt-oss-120b --fast-model openai/gpt-oss-20b"
 make eval p=--fake                                    # offline harness check (also runs in CI)
 ```
+
+`make eval` also runs **5 agent scenarios** (`--suite all|content|agent`):
+- a café cold-coffee campaign (Instagram + email) that must reach approval with drafts
+- festival research that must name a festival from the calendar and cite a returned source
+- an off-topic request and a fake-reviews request, which must be refused with zero tool calls
+- an analytics question, which must not invent metrics
+
+Every check is computed from the run's own event log. No model judges another model. Every scenario also fails if the reply claims to have published, posted, scheduled or sent anything.
 
 Each run writes `evals/reports/<date>/<provider>-<time>.md` and `.json`:
 
@@ -160,7 +241,18 @@ Each run writes `evals/reports/<date>/<provider>-<time>.md` and `.json`:
 
 Reports record the model IDs, the git SHA and each prompt's content-hashed version. Two runs are only comparable when those match.
 
+**Latest numbers (2026-10-06).** No complete live run yet, because both providers ran out of quota before a run could finish:
+- Gemini: the configured project has no quota for generating text.
+- Groq: the free tier's 200,000 tokens/day on `gpt-oss-120b` ran out after 1 of 10 content briefs.
+
+Only the offline harness has passed in full: 10/10 briefs and 5/5 agent scenarios on the scripted model. That proves the harness works, not that the models are good. This section will carry real numbers once a full run completes.
+
 ## Design decisions
+
+- **Why human approval is a graph interrupt.** The approval node calls LangGraph's `interrupt()`. The run is checkpointed and stops spending, and nothing waits in memory. Your decisions come back as `Command(resume=…)` in a new worker job. The model never approves anything: only the approval node does, and only from your explicit choices. It refuses to approve drafts that break a platform limit.
+- **Why Postgres checkpointing.** State is saved after every node in the same Postgres the app already runs. A worker crash or deploy mid-run resumes from the last completed node: the job is re-claimed, and finished steps and tool calls aren't repeated (covered by a test that kills a run mid-flight). An API restart doesn't touch runs at all, because the API never executes graphs. Clients just reconnect to the stream, which replays from `agent_events`. Redis or in-memory checkpoints would lose paused runs on restart.
+- **Why tools can't publish.** The agent works on your brand's voice in public. A model mistake should cost a draft, not a post. Publishing is a Phase 5 action that a human triggers, with its own audit trail. Agent tools are capped at drafts, and that is enforced in code (`outbound` flag + import-time assertion + test).
+- **Validators after generation apply to the agent too.** `plan_campaign` checks dates, channels and festival timing in code. Every variant is checked for the brief's prices and percentages; a missing one sends it back for revision.
 
 - **Platform rules are checked after generation, not just described in the prompt.** Models are unreliable at counting characters and hashtags. The prompt states the limits; deterministic validators then enforce them. A hard violation goes back into the critique/revise loop. If it survives, the draft is flagged as blocked and can't be approved. It is never silently truncated.
 - **There are no silent fallbacks, anywhere.**
@@ -181,3 +273,18 @@ Reports record the model IDs, the git SHA and each prompt's content-hashed versi
 - Request bodies have a size limit; auth, generation and retrieval endpoints are rate-limited through Redis.
 - Uploads are type-sniffed from their content (never trusted from the name or header). Website import blocks private and loopback addresses on every redirect hop (SSRF) and respects robots.txt.
 - Generated email HTML is autoescaped and passed through an allow-list sanitiser (`nh3`); previews render in a sandboxed iframe. Secret-looking keys and values are redacted from logs. Every response carries an `X-Request-ID`.
+
+## Assumptions
+
+- An agent "run" is one user message and everything the agent does about it. A conversation (`thread_id`) is a sequence of runs that share LangGraph state.
+- During review, drafts you don't decide on stay drafts. An edit counts as an approval of the edited version, after it passes the platform rules again.
+- Festival dates for 2027 follow the central government's gazetted holiday list (DoPT O.M., 16 Jul 2026). Regional festivals use dates where panchang sources agreed. Dates where they disagreed (e.g. Bhai Dooj 2026) are left out, not guessed.
+- Web research is scoped to India and the last month by default. The agent has to cite returned URLs; it can't add sources of its own.
+
+## Known limitations
+
+- **Provider quotas:** on free tiers a 3-variant generation with review takes a few minutes, and a full eval doesn't fit in Groq's daily token allowance.
+- **Event stream polling:** the stream polls `agent_events` every 0.5 s. That's fine at small scale; a pub/sub fan-out would replace it under load.
+- **Brand documents:** PDFs without headings become one large passage, which makes retrieval coarse. Scanned PDFs need OCR, and SVG logos are rejected.
+- **Onboarding:** refreshing mid-way can create a duplicate workspace.
+- **Duplicate generation (unconfirmed):** during one walkthrough, a content generation was saved twice. The client has no retry, and the cause hasn't been reproduced yet.
