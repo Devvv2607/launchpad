@@ -54,19 +54,25 @@ class ContentStatus(StrEnum):
     SCHEDULED = "scheduled"
     PUBLISHED = "published"
     FAILED = "failed"
+    REJECTED = "rejected"
 
 
 # Allowed status transitions. Anything outbound must pass through APPROVED,
 # which only a human can set (see content service).
 CONTENT_TRANSITIONS: dict[ContentStatus, frozenset[ContentStatus]] = {
-    ContentStatus.DRAFT: frozenset({ContentStatus.IN_REVIEW, ContentStatus.APPROVED}),
-    ContentStatus.IN_REVIEW: frozenset({ContentStatus.DRAFT, ContentStatus.APPROVED}),
+    ContentStatus.DRAFT: frozenset(
+        {ContentStatus.IN_REVIEW, ContentStatus.APPROVED, ContentStatus.REJECTED}
+    ),
+    ContentStatus.IN_REVIEW: frozenset(
+        {ContentStatus.DRAFT, ContentStatus.APPROVED, ContentStatus.REJECTED}
+    ),
     ContentStatus.APPROVED: frozenset({ContentStatus.DRAFT, ContentStatus.SCHEDULED}),
     ContentStatus.SCHEDULED: frozenset(
         {ContentStatus.APPROVED, ContentStatus.PUBLISHED, ContentStatus.FAILED}
     ),
     ContentStatus.PUBLISHED: frozenset(),
     ContentStatus.FAILED: frozenset({ContentStatus.DRAFT, ContentStatus.APPROVED}),
+    ContentStatus.REJECTED: frozenset({ContentStatus.DRAFT}),
 }
 
 
@@ -131,3 +137,4 @@ class JobKind(StrEnum):
     GENERATE = "generate"
     INGEST_DOCUMENT = "ingest_document"
     FETCH_METRICS = "fetch_metrics"
+    AGENT_RUN = "agent_run"

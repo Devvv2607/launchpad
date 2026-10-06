@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from launchpad.db.base import Base, Timestamps, UUIDPk
@@ -38,6 +38,11 @@ class AgentRun(UUIDPk, Timestamps, Base):
     tokens_out: Mapped[int] = mapped_column(Integer, default=0)
     cost_usd: Mapped[Decimal] = mapped_column(_COST, default=Decimal(0))
     token_budget: Mapped[int] = mapped_column(Integer)
+    cost_budget_usd: Mapped[Decimal] = mapped_column(_COST, default=Decimal("1.00"))
+    tool_calls: Mapped[int] = mapped_column(Integer, default=0)
+    # The user's message that started the run (also used for the title).
+    input: Mapped[str | None] = mapped_column(Text)
+    final: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -61,6 +66,22 @@ class AgentMessage(UUIDPk, Timestamps, Base):
     tokens_out: Mapped[int] = mapped_column(Integer, default=0)
     cost_usd: Mapped[Decimal] = mapped_column(_COST, default=Decimal(0))
     latency_ms: Mapped[int | None] = mapped_column(Integer)
+
+
+class AgentEvent(UUIDPk, Base):
+    """Ordered, append-only event log of a run. The SSE stream replays it, so a client can
+    (re)connect at any time — including after an API restart — and see every step."""
+
+    __tablename__ = "agent_events"
+    __table_args__ = (Index("ix_agent_events_run_seq", "run_id", "seq", unique=True),)
+
+    run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agent_runs.id", ondelete="CASCADE"))
+    seq: Mapped[int] = mapped_column(Integer)
+    type: Mapped[str] = mapped_column(String(32))
+    data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class LLMCall(UUIDPk, Timestamps, Base):

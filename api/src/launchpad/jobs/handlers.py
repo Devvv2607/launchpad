@@ -60,4 +60,12 @@ async def _fail(
         await db.commit()
 
 
-HANDLERS = {JobKind.INGEST_DOCUMENT: ingest_document}
+async def agent_run(db: AsyncSession, job: ScheduledJob) -> None:
+    from launchpad.agent.runner import execute_run
+
+    run_id = uuid.UUID(str(job.payload["run_id"]))
+    decisions = job.payload.get("decisions")
+    await execute_run(run_id, decisions=decisions)
+
+
+HANDLERS = {JobKind.INGEST_DOCUMENT: ingest_document, JobKind.AGENT_RUN: agent_run}

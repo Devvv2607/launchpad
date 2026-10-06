@@ -70,6 +70,8 @@ known-first-party = ["launchpad", "launchpad_worker", "tests"]
 "src/launchpad/content/engine.py" = ["E501"]
 "src/launchpad/content/platform_rules.py" = ["E501"]
 "evals/**" = ["E501", "S101", "S603", "S607"]  # report templates, fixtures, git sha lookup
+"src/launchpad/agent/calendar.py" = ["E501"]  # one observance per line
+"src/launchpad/agent/tools.py" = ["E501"]  # tool registry + model-facing messages
 
 [tool.mypy]
 python_version = "3.11"

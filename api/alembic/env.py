@@ -17,6 +17,18 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# LangGraph's checkpointer owns and migrates its own tables (AsyncPostgresSaver.setup()).
+EXTERNAL_TABLES = ("checkpoints", "checkpoint_writes", "checkpoint_blobs", "checkpoint_migrations")
+
+
+def include_object(
+    obj: object, name: str | None, type_: str, reflected: bool, compare_to: object
+) -> bool:
+    if type_ == "table" and name in EXTERNAL_TABLES:
+        return False
+    table = getattr(obj, "table", None)
+    return not (type_ == "index" and table is not None and table.name in EXTERNAL_TABLES)
+
 
 def _url() -> str:
     return config.get_main_option("sqlalchemy.url") or get_settings().database_url
@@ -29,13 +41,19 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def _do_run(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+        include_object=include_object,
+    )
     with context.begin_transaction():
         context.run_migrations()
 

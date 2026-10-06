@@ -229,6 +229,7 @@ async def write_content(
     campaign_goal: str | None = None,
     keep_angle: str | None = None,
     save: bool = True,
+    agent_run_id: uuid.UUID | None = None,
     progress: ProgressFn = _noop,
 ) -> list[VariantResult]:
     if channel not in CONTENT_MODELS:
@@ -301,6 +302,7 @@ async def write_content(
                 db, ws, bctx, channel=channel, brief=brief, variant=v, group=group,
                 campaign_id=campaign_id, prompt_versions=prompt_versions,
             )  # fmt: skip
+            item.agent_run_id = agent_run_id
             v.item_id = item.id
         await db.commit()
         await progress(

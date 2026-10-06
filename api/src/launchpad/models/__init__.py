@@ -1,6 +1,6 @@
 """ORM models. Importing this package registers every table on Base.metadata."""
 
-from launchpad.models.agent import AgentMessage, AgentRun, LLMCall
+from launchpad.models.agent import AgentEvent, AgentMessage, AgentRun, LLMCall
 from launchpad.models.asset import Asset
 from launchpad.models.brand import BrandChunk, BrandDocument, BrandKit
 from launchpad.models.campaign import Campaign
@@ -11,6 +11,7 @@ from launchpad.models.user import User
 from launchpad.models.workspace import Workspace
 
 __all__ = [
+    "AgentEvent",
     "AgentMessage",
     "AgentRun",
     "Asset",

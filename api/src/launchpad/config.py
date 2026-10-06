@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     daily_spend_cap_usd: float = 2.00  # per workspace; overridable in workspace settings
     agent_run_token_budget: int = 200_000
     agent_run_cost_budget_usd: float = 1.00
+    agent_max_tool_calls: int = 25
 
     # --- Embeddings (RAG) ---
     embedding_provider: EmbeddingProvider | None = None

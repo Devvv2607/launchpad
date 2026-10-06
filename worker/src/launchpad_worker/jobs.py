@@ -8,6 +8,7 @@ dispatches to a handler by kind. Failures retry with exponential backoff until
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
@@ -75,6 +76,7 @@ async def execute(job_id: uuid.UUID) -> JobStatus:
             return JobStatus.CANCELLED
         bound = log.bind(job_id=str(job.id), kind=job.kind, attempt=job.attempts)
         handler = HANDLERS.get(job.kind)
+        heartbeat = asyncio.create_task(_heartbeat(job_id))
         try:
             if handler is None:
                 raise PermanentJobError(f"No handler registered for job kind '{job.kind}'")
@@ -98,9 +100,26 @@ async def execute(job_id: uuid.UUID) -> JobStatus:
         else:
             job.status, job.last_error = JobStatus.SUCCEEDED, None
             bound.info("job_succeeded")
+        finally:
+            heartbeat.cancel()  # it only ever touched locked_at, in its own session
         job.locked_at = None
         await session.commit()
         return job.status
+
+
+HEARTBEAT_S = 60.0
+
+
+async def _heartbeat(job_id: uuid.UUID) -> None:
+    """Keep refreshing the lock so long jobs (agent runs) are never mistaken for crashed ones."""
+    while True:
+        await asyncio.sleep(HEARTBEAT_S)
+        async with get_sessionmaker()() as s:
+            job = await s.get(ScheduledJob, job_id)
+            if job is None or job.status != JobStatus.RUNNING:
+                return
+            job.locked_at = datetime.now(UTC)
+            await s.commit()
 
 
 async def _reload(session: AsyncSession, job_id: uuid.UUID) -> ScheduledJob:
@@ -110,11 +129,19 @@ async def _reload(session: AsyncSession, job_id: uuid.UUID) -> ScheduledJob:
 
 
 async def sweep(ctx: dict[str, Any] | None = None) -> int:
-    """Cron entrypoint: claim due jobs and run them. Returns the number processed."""
+    """Cron entrypoint: claim due jobs and run them. Returns the number processed.
+
+    Under ARQ each claimed job is dispatched as its own ARQ job, so a long agent run doesn't
+    block the sweep; without a Redis context (tests, scripts) jobs run inline.
+    """
     async with get_sessionmaker()() as session:
         ids = await claim_due(session, datetime.now(UTC))
+    redis = (ctx or {}).get("redis")
     for job_id in ids:
-        await execute(job_id)
+        if redis is not None:
+            await redis.enqueue_job("execute_job", str(job_id), _job_id=f"exec:{job_id}")
+        else:
+            await execute(job_id)
     if ids:
         log.info("sweep_processed", count=len(ids))
     return len(ids)
