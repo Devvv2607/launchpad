@@ -3,6 +3,10 @@
     python -m evals.run --provider gemini            # uses LLM_MODEL / LLM_FAST_MODEL if gemini is the env provider
     python -m evals.run --provider groq --model openai/gpt-oss-120b --fast-model openai/gpt-oss-20b
     python -m evals.run --fake                       # no network: checks the harness itself (CI)
+    python -m evals.run --provider groq --smoke      # quick check: 1 business (Kadak Tees) x 3 briefs
+
+If the provider's quota runs out mid-run (a 429 that survives the client's retries, e.g. a daily
+token limit), the run stops cleanly and the report is saved as PARTIAL with what completed.
 
 Runs every brief in fixtures/briefs.json through the real pipeline (brand context + RAG +
 write + critique/revise) against fresh fixture workspaces, then writes Markdown + JSON
@@ -43,6 +47,7 @@ class VariantMetrics:
     score_before: float | None
     score_after: float | None
     rounds: int
+    final_text: str = ""
 
 
 @dataclass
@@ -100,7 +105,7 @@ def resolve_models(provider: str, model: str | None, fast: str | None) -> tuple[
 
 
 async def setup_workspaces(
-    provider: str, model: str, fast: str, run_id: str
+    provider: str, model: str, fast: str, run_id: str, only: set[str] | None = None
 ) -> dict[str, uuid.UUID]:
     from launchpad.db.session import get_sessionmaker
     from launchpad.llm.service import CallContext
@@ -122,6 +127,8 @@ async def setup_workspaces(
             "critique": {"provider": provider, "model": fast},
         }
         for key, fx in fixtures.items():
+            if only is not None and key not in only:
+                continue
             ws = Workspace(
                 owner_id=user.id,
                 name=f"[eval {run_id}] {fx['workspace']['name']}",
@@ -147,7 +154,7 @@ async def setup_workspaces(
 
 async def run_brief(brief: dict[str, Any], ws_id: uuid.UUID) -> BriefResult:
     from launchpad.content.context import build_brand_context
-    from launchpad.content.engine import critique_content, write_content
+    from launchpad.content.engine import critique_content, main_text, write_content
     from launchpad.db.session import get_sessionmaker
     from launchpad.domain.enums import Channel
     from launchpad.llm.errors import LLMError
@@ -200,6 +207,7 @@ async def run_brief(brief: dict[str, Any], ws_id: uuid.UUID) -> BriefResult:
                         final_soft=sum(x["severity"] == "warning" for x in v.violations),
                         score_before=_avg(first.scores), score_after=after,
                         rounds=sum(1 for it in v.iterations if it.scores),
+                        final_text=main_text(channel, v.content),
                     )
                 )  # fmt: skip
             res.ok = True
@@ -265,6 +273,16 @@ def to_markdown(meta: dict[str, Any], summary: dict[str, Any], results: list[Bri
         + ", ".join(f"`{k}@{v}`" for k, v in meta["prompts"].items())
         + ".",
         "",
+        *(
+            [
+                f"> **PARTIAL RUN.** The provider's quota ran out at `{meta['partial']['at']}`; "
+                f"skipped: {', '.join(meta['partial']['skipped']) or 'nothing else'}. "
+                f"Provider said: {meta['partial']['reason']}",
+                "",
+            ]
+            if meta.get("partial")
+            else []
+        ),
         "| Metric | Value |",
         "| --- | --- |",
         f"| Briefs | {s['briefs']} ({s['variants']} variants) |",
@@ -290,6 +308,12 @@ def to_markdown(meta: dict[str, Any], summary: dict[str, Any], results: list[Bri
         lines.append(
             f"| {r.id} | {r.channel} | {ok} | {ba} | {dh} → {fh} | {r.calls} | ${r.cost_usd:.4f} | {r.latency_s}s |"
         )
+    if any(v.final_text for r in results for v in r.variants):
+        lines += ["", "## Final texts", ""]
+        for r in results:
+            for v in r.variants:
+                lines += [f"**{r.id} · {v.label} · {v.angle}** (score {v.score_after})", ""]
+                lines += ["> " + ln if ln else ">" for ln in v.final_text.splitlines()] + [""]
     lines += [
         "",
         "Scores are the pipeline's own critique model (1-10, averaged over brand voice, clarity, hook, CTA and",
@@ -305,39 +329,66 @@ async def main_async(args: argparse.Namespace) -> Path:
     if args.fake:
         from evals.fake import install_fake
 
-        install_fake()
+        install_fake(getattr(args, "fake_quota_calls", None))
         provider, model, fast = "gemini", "fake-writer", "fake-critic"
     else:
         provider = args.provider
         model, fast = resolve_models(provider, args.model, args.fast_model)
 
     briefs = json.loads((FIXTURES / "briefs.json").read_text(encoding="utf-8"))
+    if args.smoke:
+        briefs = [b for b in briefs if b.get("smoke")]
+        args.suite = "content"
     if args.only:
         wanted = set(args.only.split(","))
         briefs = [b for b in briefs if b["id"] in wanted]
     run_id = datetime.now(UTC).strftime("%H%M%S")
     print(f"Eval {provider}: writing={model} review={fast} briefs={len(briefs)}", flush=True)
-    ws_ids = await setup_workspaces(provider, model, fast, run_id)
+    from evals.agent import agent_markdown, load_scenarios, run_scenario
 
-    results = []
     if args.suite == "agent":
         briefs = []
+    scenarios = (
+        load_scenarios(set(args.only.split(",")) if args.only else None)
+        if args.suite in ("all", "agent")
+        else []
+    )
+    needed = {b["workspace"] for b in briefs} | {s["workspace"] for s in scenarios}
+    ws_ids = await setup_workspaces(provider, model, fast, run_id, only=needed)
+
+    results = []
+    stopped: dict[str, Any] | None = None  # set when the provider's quota runs out
     for b in briefs:
+        if stopped:
+            stopped["skipped"].append(b["id"])
+            continue
         r = await run_brief(b, ws_ids[b["workspace"]])
         status = "ok" if r.ok else f"FAILED {r.error_code}"
         print(f"  {b['id']:<22} {status:<28} {r.latency_s:>6}s ${r.cost_usd:.4f}", flush=True)
+        if r.error_code == "llm_rate_limited":
+            stopped = {"at": b["id"], "reason": r.error, "skipped": []}
+            print(
+                f"  quota exhausted at {b['id']}; stopping and saving partial results", flush=True
+            )
+            continue  # the brief didn't really run: report it as skipped, not as a model failure
         results.append(r)
 
-    from evals.agent import agent_markdown, load_scenarios, run_scenario
-
     agent_results = []
-    if args.suite in ("all", "agent"):
-        for scn in load_scenarios(set(args.only.split(",")) if args.only else None):
-            ar = await run_scenario(scn, ws_ids[scn["workspace"]])
-            failed = [k for k, v in ar.checks.items() if not v]
-            status = "ok" if ar.ok else f"FAILED {','.join(failed)[:40]}"
-            print(f"  {scn['id']:<26} {status:<44} {ar.latency_s:>6}s", flush=True)
-            agent_results.append(ar)
+    for scn in scenarios:
+        if stopped:
+            stopped["skipped"].append(scn["id"])
+            continue
+        ar = await run_scenario(scn, ws_ids[scn["workspace"]])
+        if ar.error and "llm_rate_limited" in ar.error:
+            stopped = {"at": scn["id"], "reason": ar.error, "skipped": []}
+            print(
+                f"  quota exhausted at {scn['id']}; stopping and saving partial results", flush=True
+            )
+            continue
+        failed = [k for k, v in ar.checks.items() if not v]
+        status = "ok" if ar.ok else f"FAILED {','.join(failed)[:40]}"
+        print(f"  {scn['id']:<26} {status:<44} {ar.latency_s:>6}s", flush=True)
+        agent_results.append(ar)
 
     meta = {
         "provider": provider, "model": model, "fast_model": fast,
@@ -345,12 +396,13 @@ async def main_async(args: argparse.Namespace) -> Path:
         "git": _git_sha(), "fake": bool(args.fake),
         "prompts": {n: load_prompt(n).version for n in (
             "write_content", "critique_content", "agent_planner", "agent_system", "plan_campaign")},
-        "suite": args.suite,
+        "suite": "smoke" if args.smoke else args.suite,
+        "partial": stopped,
     }  # fmt: skip
     summary = summarise(results)
     out_dir = Path(args.out) / datetime.now(UTC).strftime("%Y-%m-%d")
     out_dir.mkdir(parents=True, exist_ok=True)
-    stem = f"{'fake' if args.fake else provider}-{run_id}"
+    stem = f"{'fake' if args.fake else provider}{'-smoke' if args.smoke else ''}-{run_id}"
     (out_dir / f"{stem}.json").write_text(
         json.dumps(
             {
@@ -388,6 +440,9 @@ def main() -> None:
     p.add_argument("--out", default=str(ROOT / "reports"))
     p.add_argument(
         "--fake", action="store_true", help="scripted LLM; validates the harness offline"
+    )
+    p.add_argument(
+        "--smoke", action="store_true", help="quick check: Kadak Tees x 3 content briefs only"
     )
     args = p.parse_args()
     if not args.fake and not args.provider:

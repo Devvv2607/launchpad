@@ -18,5 +18,11 @@
   {"id": "fit-li-hiring", "workspace": "fitness_studio", "channel": "linkedin_post", "n": 2,
    "brief": "Hiring post: we need a certified strength coach who loves working with beginners."},
   {"id": "fit-carousel-40plus", "workspace": "fitness_studio", "channel": "instagram_carousel", "n": 2,
-   "brief": "Carousel busting myths about strength training after 40, promoting the Strong at 40+ class."}
+   "brief": "Carousel busting myths about strength training after 40, promoting the Strong at 40+ class."},
+  {"id": "kadak-ig-monsoon", "workspace": "kadak_tees", "channel": "instagram_post", "n": 3, "smoke": true,
+   "brief": "Monsoon drop: 5 rain-themed graphic tees, ₹699 each"},
+  {"id": "kadak-carousel-fits", "workspace": "kadak_tees", "channel": "instagram_carousel", "n": 2, "smoke": true,
+   "brief": "Oversized vs regular fit: which one is you? Sizes XS to XXL, 220 GSM cotton, easy 7-day size exchange"},
+  {"id": "kadak-email-early", "workspace": "kadak_tees", "channel": "email", "n": 1, "smoke": true,
+   "brief": "Early access for subscribers to the monsoon drop: 5 rain-themed tees, ₹699 each or 3 for ₹1,899"}
 ]

@@ -67,5 +67,23 @@
       ]
     },
     "doc": "docs/fitness_studio.md"
+  },
+  "kadak_tees": {
+    "workspace": {
+      "name": "Kadak Tees",
+      "industry": "fashion",
+      "description": "Mumbai streetwear label: graphic tees about everyday Bombay life, drawn in-house and sold in limited drops.",
+      "audience": "18-28 year old college students and young professionals in Mumbai, Pune and Bengaluru",
+      "locations": ["Mumbai"]
+    },
+    "brand_kit": {
+      "primary_color": "#1E1E1E",
+      "secondary_color": "#F2B705",
+      "voice_tone": "Witty, warm Hinglish, like a friend from the same local train. Short punchy lines, Bombay slang (bindaas, ekdum, kadak), max two emojis. Self-aware humour, never mean.",
+      "do_words": ["drop", "limited batch", "drawn in Mumbai"],
+      "dont_words": ["cheap", "sale-sale-sale"],
+      "sample_posts": []
+    },
+    "doc": "docs/kadak_tees.md"
   }
 }

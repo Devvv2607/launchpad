@@ -41,11 +41,22 @@ class FakeProvider(LLMClient):
     provider = "gemini"
     supports_embeddings = True
 
-    def __init__(self) -> None:
+    def __init__(self, daily_quota_calls: int | None = None) -> None:
         super().__init__(max_retries=0)
         self.critiques: dict[str, int] = {}
+        # Simulates a provider's daily limit running out after N calls (tests the eval's stop).
+        self.daily_quota_calls = daily_quota_calls
+        self.calls = 0
 
     async def _complete(self, model: str, messages: list[Message], **_: Any) -> RawCompletion:
+        self.calls += 1
+        if self.daily_quota_calls is not None and self.calls > self.daily_quota_calls:
+            from launchpad.llm.errors import LLMRateLimitError
+
+            raise LLMRateLimitError(
+                "fake rate limit reached: tokens per day (TPD) limit exhausted",
+                retry_after_s=2400,
+            )
         system = messages[0].content
         if "planning step of a marketing assistant" in system:
             return _json(_fake_plan(messages[-1].content))
@@ -88,7 +99,7 @@ class FakeProvider(LLMClient):
         return out
 
 
-def install_fake() -> None:
+def install_fake(daily_quota_calls: int | None = None) -> None:
     from launchpad.config import get_settings
     from launchpad.llm import service
 
@@ -99,7 +110,7 @@ def install_fake() -> None:
         from pydantic import SecretStr
 
         s.gemini_api_key = SecretStr("fake")
-    fake = FakeProvider()
+    fake = FakeProvider(daily_quota_calls)
     service.llm._client_factory = lambda _provider: fake
 
     from launchpad.agent.research import Source, set_search_provider
