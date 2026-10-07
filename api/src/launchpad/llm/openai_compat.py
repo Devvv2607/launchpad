@@ -10,7 +10,12 @@ import httpx
 
 from launchpad.llm.base import LLMClient, tool_result_content
 from launchpad.llm.capabilities import caps_for
-from launchpad.llm.errors import LLMBadRequestError, LLMOutputError, LLMRefusalError
+from launchpad.llm.errors import (
+    LLMBadRequestError,
+    LLMOutputError,
+    LLMRefusalError,
+    LLMToolCallRejected,
+)
 from launchpad.llm.http import DEFAULT_TIMEOUT, post_json, stream_sse
 from launchpad.llm.schema import inline_refs, strict_schema
 from launchpad.llm.types import Message, RawCompletion, Reasoning, ToolCall, ToolSpec, Usage
@@ -151,6 +156,11 @@ class OpenAICompatClient(LLMClient):
                 headers=self._headers,
             )  # fmt: skip
         except LLMBadRequestError as exc:
+            if tools and _tool_call_rejection(exc):
+                raise LLMToolCallRejected(
+                    exc.message, provider=exc.provider, model=exc.model,
+                    request_id=exc.request_id, details=exc.details,
+                ) from exc  # fmt: skip
             rejected = _schema_rejection(exc) if json_schema is not None else None
             if rejected is None:
                 raise
@@ -273,3 +283,12 @@ def _schema_rejection(exc: LLMBadRequestError) -> str | None:
     if err.get("code") == "json_validate_failed" and isinstance(failed, str):
         return failed
     return None
+
+
+def _tool_call_rejection(exc: LLMBadRequestError) -> bool:
+    """A 400 meaning "the model's tool call didn't match the tool's schema" (Groq)."""
+    details = exc.details if isinstance(exc.details, dict) else {}
+    err = details.get("provider_error") or {}
+    return (
+        err.get("code") == "tool_use_failed" or "tool call validation failed" in exc.message.lower()
+    )

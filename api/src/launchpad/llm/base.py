@@ -30,6 +30,7 @@ from launchpad.llm.errors import (
     LLMProviderError,
     LLMRateLimitError,
     LLMTimeoutError,
+    LLMToolCallRejected,
 )
 from launchpad.llm.pricing import estimate_cost
 from launchpad.llm.schema import extract_json, json_schema_for
@@ -51,6 +52,11 @@ T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R")
 
 RETRYABLE = (LLMRateLimitError, LLMProviderError, LLMTimeoutError)
+
+TOOL_REPAIR_PROMPT = (
+    "[system] Your last tool call was rejected before it ran: {error}\n"
+    "Call the tool again with arguments that match its schema exactly, or reply without tools."
+)
 
 REPAIR_PROMPT = (
     "Your previous reply did not match the required JSON schema.\n"
@@ -145,8 +151,22 @@ class LLMClient(ABC):
                 model=model,
             )
 
-        raw = await call(messages)
-        usage, attempts, parsed = raw.usage, 1, None
+        attempts = 1
+        try:
+            raw = await call(messages)
+        except LLMToolCallRejected as rejected:
+            # The provider rejected the model's tool call against the schema. Tell the model why
+            # and let it try once more, as the tools node would for arguments it validates itself.
+            attempts = 2
+            log.warning("llm_tool_call_rejected_retrying", provider=self.provider, model=model,
+                        error=rejected.message[:500])  # fmt: skip
+            raw = await call(
+                [
+                    *messages,
+                    Message(role="user", content=TOOL_REPAIR_PROMPT.format(error=rejected.message)),
+                ]
+            )
+        usage, parsed = raw.usage, None
         if schema is not None:
             try:
                 parsed = self._parse(schema, raw.text)

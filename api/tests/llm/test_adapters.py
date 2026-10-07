@@ -436,3 +436,31 @@ def test_strict_schema_keeps_fields_named_title_or_default() -> None:
     assert "title" not in s  # the schema's own title annotation is still dropped
     step = strict_schema(PlanOut.model_json_schema())["properties"]["steps"]["items"]
     assert step["required"] == ["title", "tool"]  # this field was missing (planner regression)
+
+
+async def test_groq_rejected_tool_call_is_retried_once_with_the_reason() -> None:
+    from launchpad.llm.errors import LLMToolCallRejected
+    from launchpad.llm.types import ToolSpec
+
+    spec = ToolSpec("plan", "Plan", {"type": "object", "properties": {"ch": {"enum": ["email"]}}})
+    rejected = {
+        "error": {
+            "message": "Tool call validation failed: `/ch`: value must be one of 'email'",
+            "type": "invalid_request_error",
+            "code": "tool_use_failed",
+        }
+    }
+    call_ok = {
+        "choices": [{"message": {"content": "", "tool_calls": [{"id": "c1", "type": "function",
+                    "function": {"name": "plan", "arguments": "{\"ch\": \"email\"}"}}]},
+                     "finish_reason": "tool_calls"}],
+        "usage": {"prompt_tokens": 50, "completion_tokens": 10},
+    }  # fmt: skip
+    h = make("groq", [(400, rejected, {}), (200, call_ok, {})])
+    r = await h.client.generate(MSGS, model="openai/gpt-oss-120b", tools=[spec])
+    assert r.attempts == 2 and r.tool_calls[0].arguments == {"ch": "email"}
+    assert "value must be one of" in h.requests[1]["messages"][-1]["content"]
+
+    h = make("groq", [(400, rejected, {}), (400, rejected, {})])
+    with pytest.raises(LLMToolCallRejected):  # twice: a typed error, not a silent fallback
+        await h.client.generate(MSGS, model="openai/gpt-oss-120b", tools=[spec])

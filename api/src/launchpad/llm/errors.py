@@ -77,6 +77,13 @@ class LLMBadRequestError(LLMError):
     http_status = 502
 
 
+class LLMToolCallRejected(LLMBadRequestError):
+    """The provider validated the model's tool call against our schema and rejected it (Groq
+    does this server-side). Retried once with the reason fed back to the model."""
+
+    code = "llm_tool_call_rejected"
+
+
 class LLMOutputError(LLMError):
     """The model's output failed schema validation twice (initial + one repair attempt)."""
 
