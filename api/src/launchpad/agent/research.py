@@ -4,6 +4,7 @@ when research isn't configured the tool says so instead of inventing trends."""
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Protocol
 
 import httpx
@@ -30,6 +31,30 @@ class SearchProvider(Protocol):
     ) -> list[Source]: ...
 
 
+# Social and video platforms aren't citable trend sources (and are mostly login-walled).
+EXCLUDED_DOMAINS = [
+    "facebook.com", "instagram.com", "x.com", "twitter.com", "linkedin.com", "youtube.com",
+    "pinterest.com", "reddit.com", "tiktok.com", "threads.net", "quora.com",
+]  # fmt: skip
+
+
+def build_query(query: str, *, brand: str, category: str, city: str | None, today: date) -> str:
+    """The agent's query, anchored to the brand, its category, its city and this month."""
+    q = query.strip()
+    extras = [brand, category, city or "India", today.strftime("%B %Y")]
+    return " ".join([q, *(e for e in extras if e and e.lower() not in q.lower())])
+
+
+def usable(url: str, score: float | None, min_score: float) -> bool:
+    path = url.lower().split("?", 1)[0]
+    if path.endswith(".pdf"):
+        return False
+    host = path.split("//", 1)[-1].split("/", 1)[0]
+    if any(host == d or host.endswith("." + d) for d in EXCLUDED_DOMAINS):
+        return False
+    return score is None or score >= min_score
+
+
 class TavilySearch:
     URL = "https://api.tavily.com/search"
 
@@ -44,8 +69,9 @@ class TavilySearch:
             "query": query,
             "topic": "general",
             "search_depth": "basic",
-            "max_results": max_results,
+            "max_results": max_results * 2,  # room for the filters below
             "country": "india",
+            "exclude_domains": EXCLUDED_DOMAINS,
         }
         if recent:
             body["time_range"] = "month"
@@ -62,6 +88,7 @@ class TavilySearch:
                 headers=resp.headers, request_id=resp.headers.get("x-request-id"),
                 model_env_var="TAVILY_API_KEY",
             )  # fmt: skip
+        min_score = get_settings().research_min_score
         return [
             Source(
                 title=str(r.get("title") or r.get("url")),
@@ -70,8 +97,8 @@ class TavilySearch:
                 published=r.get("published_date"),
             )
             for r in resp.json().get("results", [])
-            if r.get("url")
-        ]
+            if r.get("url") and usable(str(r["url"]), r.get("score"), min_score)
+        ][:max_results]
 
 
 _provider: SearchProvider | None = None

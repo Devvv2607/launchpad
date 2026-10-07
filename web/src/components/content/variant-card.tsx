@@ -25,6 +25,9 @@ type Iteration = {
 };
 type Violation = { rule: string; severity: string; message: string };
 
+// Quality checks that survived review: not blocking, but a human should look before approving.
+const FACT_RULES = new Set(["unsupported_fact", "critic_added_facts"]);
+
 const SCORE_LABELS: [string, string][] = [
   ["brand_voice", "Brand voice"],
   ["clarity", "Clarity"],
@@ -119,6 +122,8 @@ export function VariantCard({
   const issues = scored[0]?.issues ?? [];
   const violations = (shown?.violations ?? []) as Violation[];
   const blocked = shown?.blocked ?? false;
+  const factFlag = violations.some((v) => FACT_RULES.has(v.rule));
+  const needsLook = violations.some((v) => v.severity !== "error");
   const original = iterations[0]?.content;
 
   async function copy() {
@@ -140,6 +145,11 @@ export function VariantCard({
         ) : blocked ? (
           <Badge variant="outline" className="bg-rose-soft text-rose">
             Can&apos;t publish yet
+          </Badge>
+        ) : shown && (factFlag || needsLook) ? (
+          <Badge variant="outline" className="bg-marigold-soft text-marigold">
+            <AlertTriangle className="size-3" aria-hidden />{" "}
+            {factFlag ? "Check facts" : "Needs a look"}
           </Badge>
         ) : shown ? (
           <Badge variant="outline" className="bg-leaf-soft text-leaf">
@@ -186,7 +196,7 @@ export function VariantCard({
               key={i}
               className={cn(
                 "flex items-start gap-1.5",
-                v.severity === "error" ? "text-rose" : "text-muted-foreground",
+                v.severity === "error" ? "text-rose" : "text-marigold",
               )}
             >
               <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden />

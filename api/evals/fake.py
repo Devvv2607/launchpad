@@ -13,6 +13,7 @@ from typing import Any
 from launchpad.llm.base import LLMClient
 from launchpad.llm.types import Message, RawCompletion, Usage
 
+STRUCTURES = ["question-led", "story", "list", "offer-first", "dialogue", "one-liner"]
 _WORD = re.compile(r"[a-z0-9]+")
 
 CONTENT: dict[str, dict[str, Any]] = {
@@ -76,7 +77,7 @@ class FakeProvider(LLMClient):
         else:
             n = int(re.search(r"Write (\d+) variant", messages[-1].content).group(1))  # type: ignore[union-attr]
             reply = {"variants": [
-                {"angle": f"Angle {i}", "hook": f"Distinct hook number {i} about topic {i * 7}",
+                {"angle": f"Angle {i}", "structure": STRUCTURES[i - 1], "hook": f"Distinct hook number {i} about topic {i * 7}",
                  "rationale": "Synthetic.", "content": content} for i in range(1, n + 1)]}  # fmt: skip
         return RawCompletion(json.dumps(reply), [], Usage(400, 200), "fake")
 

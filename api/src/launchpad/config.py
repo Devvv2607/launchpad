@@ -84,6 +84,7 @@ class Settings(BaseSettings):
     embedding_dim: int = 768
     # Chunks below this cosine similarity are dropped from retrieval results.
     rag_min_score: float = 0.55
+    research_min_score: float = Field(default=0.5, ge=0, le=1)  # Tavily relevance cut-off
 
     # --- Images ---
     image_provider: ImageProvider | None = None

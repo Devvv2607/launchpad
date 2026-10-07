@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from launchpad.agent.calendar import as_dict, between
 from launchpad.agent.campaign import plan_campaign
-from launchpad.agent.research import ResearchNotConfigured, get_search
+from launchpad.agent.research import ResearchNotConfigured, build_query, get_search
 from launchpad.content.context import build_brand_context
 from launchpad.content.engine import critique_content, main_text, suggest_hashtags, write_content
 from launchpad.content.platform_rules import validate
@@ -91,6 +91,11 @@ class WriteContentIn(_In):
     channel: Literal["instagram_post", "instagram_carousel", "linkedin_post", "x_post", "email"]
     brief: str = Field(description="Everything the writer needs: topic, offer, dates, audience")
     n_variants: int = Field(default=2, ge=1, le=4)
+    publish_date: date | None = Field(
+        default=None,
+        description="The calendar item's date when writing for a planned slot. Any date in the "
+        "copy must match it (checked automatically).",
+    )
 
 
 class CritiqueIn(_In):
@@ -157,7 +162,11 @@ async def _research(tc: ToolContext, a: ResearchIn) -> dict[str, Any]:
     festivals = [as_dict(o) for o in between(today, today + timedelta(days=a.days_ahead))]
     out: dict[str, Any] = {"festivals": festivals, "today": today.isoformat()}
     try:
-        sources = await get_search().search(a.query, max_results=5)
+        query = build_query(
+            a.query, brand=tc.ws.name, category=tc.ws.industry.value,
+            city=tc.ws.locations[0] if tc.ws.locations else None, today=today,
+        )  # fmt: skip
+        sources = await get_search().search(query, max_results=5)
         out["sources"] = [
             {
                 "n": i + 1,
@@ -170,7 +179,7 @@ async def _research(tc: ToolContext, a: ResearchIn) -> dict[str, Any]:
         ]
         await tc.emit(
             "research",
-            {"query": a.query, "sources": [{"title": s.title, "url": s.url} for s in sources]},
+            {"query": query, "sources": [{"title": s.title, "url": s.url} for s in sources]},
         )
     except ResearchNotConfigured as exc:
         out["sources"] = []
@@ -198,7 +207,7 @@ async def _write(tc: ToolContext, a: WriteContentIn) -> dict[str, Any]:
     channel = Channel(a.channel)
     variants = await write_content(
         tc.db, tc.ws, tc.ctx, channel=channel, brief=a.brief, n_variants=a.n_variants,
-        agent_run_id=tc.run_id,
+        agent_run_id=tc.run_id, publish_date=a.publish_date,
     )  # fmt: skip
     items = []
     for v in variants:

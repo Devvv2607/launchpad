@@ -10,7 +10,7 @@ from typing import Any
 
 from launchpad.llm.base import LLMClient
 from launchpad.llm.types import Message, RawCompletion, ToolCall, Usage
-from tests.content.fake_llm import critique
+from tests.content.fake_llm import STRUCTURES, _tags, critique, draft_in
 from tests.rag.fakes import hash_embed
 
 AgentTurn = RawCompletion | Callable[[list[Message]], RawCompletion]
@@ -65,7 +65,7 @@ def ig(angle: str, hook: str) -> dict[str, Any]:
         "rationale": f"{angle} fits the launch.",
         "content": {
             "caption": f"{hook}\nCold coffee is on the menu from Monday. Come try it.",
-            "hashtags": ["#ColdCoffee", "#CafeLaunch", "#Bandra"],
+            "hashtags": _tags(angle, "#ColdCoffee"),
             "cta": "Visit this week",
             "image_idea": "Glass of cold coffee with condensation on a wooden counter",
             "alt_text": "A glass of cold coffee on a café counter",
@@ -110,12 +110,20 @@ class AgentLLM(LLMClient):
             m = re.search(r"Write (\d+) variant", messages[-1].content)
             n = int(m.group(1)) if m else len(self.variants)
             return RawCompletion(
-                json.dumps({"variants": self.variants[: max(1, n)]}), [], Usage(600, 400), "rid-w"
+                json.dumps(
+                    {
+                        "variants": [
+                            {"structure": STRUCTURES[i], **v}
+                            for i, v in enumerate(self.variants[: max(1, n)])
+                        ]
+                    }
+                ),
+                [],
+                Usage(600, 400),
+                "rid-w",
             )
         if kind == "critique":
-            draft = json.loads(
-                messages[-1].content.split("Draft (JSON):\n", 1)[1].split("\n\nAutomated", 1)[0]
-            )
+            draft = draft_in(messages[-1].content)
             return RawCompletion(critique(9, draft), [], Usage(500, 300), "rid-c")
         raise AssertionError(f"unexpected prompt kind {kind!r}")
 
