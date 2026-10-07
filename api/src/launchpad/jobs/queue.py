@@ -4,6 +4,7 @@ only a fast path. If Redis is unavailable the worker's cron sweep picks the job 
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -43,17 +44,29 @@ async def enqueue(
     return job
 
 
-async def _poke_worker(job_id: uuid.UUID) -> None:
-    try:
-        from arq import create_pool
-        from arq.connections import RedisSettings
+POKE_TIMEOUT_S = 2.0
 
-        pool = await create_pool(RedisSettings.from_dsn(get_settings().redis_url))
-        try:
-            await pool.enqueue_job("run_job_now", str(job_id))
-        finally:
-            await pool.aclose()
-    except Exception as exc:  # Redis down etc. — the cron sweep still runs the job
+
+async def _poke_worker(job_id: uuid.UUID) -> None:
+    """Best effort, and bounded: if Redis is slow or down, the request must not wait on it
+    (ARQ's own connection retries take far longer than any client would wait)."""
+    try:
+        await asyncio.wait_for(_enqueue_now(job_id), timeout=POKE_TIMEOUT_S)
+    except Exception as exc:  # Redis down/slow etc. — the cron sweep still runs the job
         log.warning(
             "worker_poke_failed_job_will_run_on_next_sweep", job_id=str(job_id), error=str(exc)
         )
+
+
+async def _enqueue_now(job_id: uuid.UUID) -> None:
+    from arq import create_pool
+    from arq.connections import RedisSettings
+
+    settings = RedisSettings.from_dsn(get_settings().redis_url)
+    settings.conn_retries = 0
+    settings.conn_timeout = 1
+    pool = await create_pool(settings)
+    try:
+        await pool.enqueue_job("run_job_now", str(job_id))
+    finally:
+        await pool.aclose()
