@@ -12,12 +12,14 @@ import re
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
+from datetime import date
 from typing import Any
 
 import structlog
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from launchpad.content import quality
 from launchpad.content.context import BrandContext, build_brand_context
 from launchpad.content.email_render import render_email
 from launchpad.content.platform_rules import (
@@ -32,6 +34,7 @@ from launchpad.content.platform_rules import (
     normalize_hashtags,
     validate,
 )
+from launchpad.content.quality import Grounding
 from launchpad.content.schemas import (
     CONTENT_MODELS,
     CritiqueScores,
@@ -55,8 +58,8 @@ GOOD_ENOUGH = 8
 LABELS = "ABCDEFGH"
 
 CHANNEL_GUIDES: dict[Channel, str] = {
-    Channel.INSTAGRAM_POST: "A single-image Instagram post. Caption: hook line, short body with line breaks, CTA. Describe the image (no text baked into it).",
-    Channel.INSTAGRAM_CAROUSEL: "An Instagram carousel. Slide 1 = hook, middle slides = value (one idea each), last slide = CTA. Caption complements the slides.",
+    Channel.INSTAGRAM_POST: "A single-image Instagram post. Caption = hook + ONE reason to care + the price + one CTA. At most 2-3 product facts, under ~60 words before hashtags. No delivery/COD/dispatch/exchange details unless the brief asks for them. Describe the image (no text baked into it).",
+    Channel.INSTAGRAM_CAROUSEL: "An Instagram carousel. Slide 1 = hook, middle slides = value (one idea each), last slide = CTA. Caption = hook + one reason to care + CTA, under ~60 words before hashtags; no logistics unless the brief asks.",
     Channel.LINKEDIN_POST: "A LinkedIn post from the business. Professional but human; short paragraphs; insight or story first; no hashtag spam.",
     Channel.X_POST: "An X (Twitter) post. 'single' = one post; 'thread' = 2-10 numbered posts that each stand alone. Punchy.",
     Channel.EMAIL: "A marketing email: 3 subject-line variants (different approaches), a preheader, then 2-8 sections (hero, text, bullets, quote, cta). Exactly one 'cta' section with a button label; button_url null unless a URL is given.",
@@ -156,15 +159,35 @@ def _missing_brief_facts(content: dict[str, Any], brief: str) -> list[Violation]
     ]
 
 
-def _violations(channel: Channel, content: dict[str, Any], brief: str = "") -> list[dict[str, str]]:
-    found = [*validate(channel, content), *_missing_brief_facts(content, brief)]
+def _violations(
+    channel: Channel,
+    content: dict[str, Any],
+    brief: str = "",
+    grounding: Grounding | None = None,
+) -> list[dict[str, str]]:
+    found = [
+        *validate(channel, content),
+        *_missing_brief_facts(content, brief),
+        *quality.check(channel, content, grounding),
+    ]
     return [asdict(v) for v in found]
 
 
 def _must_fix(v: dict[str, str]) -> bool:
-    """Violations the review loop must resolve. Missing brief facts don't block approval
-    (a teaser may omit the price on purpose) but do trigger a revision."""
-    return v["severity"] == "error" or v["rule"] == BRIEF_FACT
+    """Violations the review loop must resolve. Quality problems (missing brief facts, unsupported
+    facts, spec-dumping, unrequested logistics, critic-added facts) don't block approval but do
+    trigger a revision; anything left after the loop is flagged on the draft."""
+    return v["severity"] == "error" or v["rule"] == BRIEF_FACT or v["rule"] in quality.MUST_FIX
+
+
+def grounding_for(bctx: BrandContext, brief: str, publish_date: date | None = None) -> Grounding:
+    """What the writer saw: brief, brand kit, retrieved brand-document passages, and the
+    campaign item's date when writing for a calendar slot."""
+    texts = [bctx.description or "", bctx.audience or "", bctx.voice_tone or "",
+             *bctx.sample_posts, *(k.content for k in bctx.knowledge)]  # fmt: skip
+    return Grounding.build(
+        brief=brief, texts=texts, publish_date=publish_date, business_name=bctx.business_name
+    )
 
 
 def main_text(channel: Channel, content: dict[str, Any]) -> str:
@@ -206,8 +229,11 @@ async def critique_content(
         draft_json=json.dumps(content, ensure_ascii=False, indent=1),
         violations=[v["message"] for v in violations if _must_fix(v)],
     )
+    # Emails have a large structured schema that the fast review model truncates; review them
+    # with the main writing model instead.
+    purpose = Purpose.WRITING if channel == Channel.EMAIL else Purpose.CRITIQUE
     result, call_id = await llm.generate(
-        ctx, Purpose.CRITIQUE, prompt, task="critique_content",
+        ctx, purpose, prompt, task="critique_content",
         schema=critique_model(channel), temperature=0.3, max_tokens=8192, reasoning="low",
     )  # fmt: skip
     assert result.parsed is not None
@@ -223,6 +249,7 @@ async def _review_loop(
     channel: Channel,
     brief: str,
     progress: ProgressFn,
+    grounding: Grounding | None = None,
 ) -> None:
     for rnd in range(1, MAX_CRITIQUE_ROUNDS + 1):
         current = variant.iterations[-1]
@@ -241,7 +268,11 @@ async def _review_loop(
             break
         await progress({"type": "step", "key": f"revise_{variant.label}_{rnd}", "status": "done",
                         "label": f"Revised variant {variant.label}"})  # fmt: skip
-        variant.iterations.append(Iteration(rnd, revised, _violations(channel, revised, brief)))
+        found = _violations(channel, revised, brief, grounding)
+        found += [
+            asdict(v) for v in quality.added_by_critic(channel, current.content, revised, grounding)
+        ]
+        variant.iterations.append(Iteration(rnd, revised, found))
     final = variant.iterations[-1]
     variant.content, variant.violations = final.content, final.violations
 
@@ -260,6 +291,7 @@ async def write_content(
     keep_angle: str | None = None,
     save: bool = True,
     agent_run_id: uuid.UUID | None = None,
+    publish_date: date | None = None,
     progress: ProgressFn = _noop,
 ) -> list[VariantResult]:
     if channel not in CONTENT_MODELS:
@@ -283,9 +315,11 @@ async def write_content(
         if not keep_angle
         else f"{brief}\n\nKeep this angle but write a fresh take: {keep_angle}"
     )
+    grounding = grounding_for(bctx, brief, publish_date)
     prompt = load_prompt("write_content").render(
-        **_prompt_vars(bctx, channel), brief=full_brief, n=n_variants, campaign_goal=campaign_goal
-    )
+        **_prompt_vars(bctx, channel), brief=full_brief, n=n_variants, campaign_goal=campaign_goal,
+        publish_date=publish_date.strftime("%A %d %B %Y") if publish_date else None,
+    )  # fmt: skip
     await progress({"type": "step", "key": "write", "status": "running",
                     "label": f"Writing {n_variants} variant{'s' if n_variants != 1 else ''}"})  # fmt: skip
     result, write_call = await llm.generate(
@@ -297,10 +331,15 @@ async def write_content(
         {"type": "step", "key": "write", "status": "done", "label": f"Wrote {n_variants} drafts"}
     )
 
+    drafts = list(result.parsed.variants)
+    if n_variants > 1:
+        drafts = await _diversify(
+            ctx, bctx, channel, full_brief, campaign_goal, publish_date, drafts, grounding, progress
+        )
     variants: list[VariantResult] = []
-    for i, v in enumerate(result.parsed.variants):
+    for i, v in enumerate(drafts):
         content = _clean(channel, v.content.model_dump())
-        violations = _violations(channel, content, brief)
+        violations = _violations(channel, content, brief, grounding)
         variants.append(
             VariantResult(
                 label=LABELS[i], angle=v.angle, hook=v.hook, rationale=v.rationale,
@@ -314,10 +353,26 @@ async def write_content(
     if critique:
         await asyncio.gather(
             *(
-                _review_loop(ctx, bctx, v, channel=channel, brief=brief, progress=progress)
+                _review_loop(
+                    ctx,
+                    bctx,
+                    v,
+                    channel=channel,
+                    brief=brief,
+                    progress=progress,
+                    grounding=grounding,
+                )
                 for v in variants
             )
         )
+
+    # Revisions can drift together; flag (don't regenerate again) anything that ended up similar.
+    for label, why in quality.similarity_problems(
+        channel, [quality.Draft(v.label, v.angle, v.content) for v in variants], grounding
+    ).items():
+        v = next(x for x in variants if x.label == label)
+        v.violations = [*v.violations, asdict(Violation(quality.TOO_SIMILAR, "warning",
+                        f"Too similar to another variant: {why}."))]  # fmt: skip
 
     if save:
         await progress(
@@ -456,3 +511,46 @@ def revalidate(channel: Channel, content: dict[str, Any]) -> list[dict[str, str]
 
 def parse_content(channel: Channel, content: dict[str, Any]) -> BaseModel:
     return CONTENT_MODELS[channel].model_validate(content)
+
+
+async def _diversify(
+    ctx: CallContext,
+    bctx: BrandContext,
+    channel: Channel,
+    brief: str,
+    campaign_goal: str | None,
+    publish_date: date | None,
+    drafts: list[Any],
+    grounding: Grounding,
+    progress: ProgressFn,
+) -> list[Any]:
+    """Regenerate (once) any variant that repeats another's angle, facts or hashtags."""
+    problems = quality.similarity_problems(
+        channel,
+        [quality.Draft(LABELS[i], d.angle, d.content.model_dump()) for i, d in enumerate(drafts)],
+        grounding,
+    )
+    for label, why in problems.items():
+        i = LABELS.index(label)
+        others = [d for j, d in enumerate(drafts) if j != i]
+        avoid = "\n".join(
+            f'- angle "{d.angle}", structure {d.structure}, hashtags {" ".join(d.content.model_dump().get("hashtags") or [])}'
+            for d in others
+        )
+        await progress({"type": "step", "key": f"diversify_{label}", "status": "running",
+                        "label": f"Rewriting variant {label}: {why}"})  # fmt: skip
+        prompt = load_prompt("write_content").render(
+            **_prompt_vars(bctx, channel), n=1, campaign_goal=campaign_goal,
+            brief=f"{brief}\n\nThe other variants already use these; take a different angle and "
+                  f"structure, different facts and different hashtags:\n{avoid}",
+            publish_date=publish_date.strftime("%A %d %B %Y") if publish_date else None,
+        )  # fmt: skip
+        result, _ = await llm.generate(
+            ctx, Purpose.WRITING, prompt, task="write_content_diversify",
+            schema=draft_set_model(channel, 1), max_tokens=6000,
+        )  # fmt: skip
+        assert result.parsed is not None
+        drafts[i] = result.parsed.variants[0]
+        await progress({"type": "step", "key": f"diversify_{label}", "status": "done",
+                        "label": f"Rewrote variant {label}"})  # fmt: skip
+    return drafts

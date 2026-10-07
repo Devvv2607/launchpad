@@ -57,6 +57,12 @@ class ScriptedLLM(LLMClient):
         return [hash_embed(t, dim) for t in texts]
 
 
+def _tags(angle: str, base: str) -> list[str]:
+    """Distinct per angle, like real variants must be (the diversity check compares them)."""
+    slug = "".join(w.capitalize() for w in angle.split() if w.isalnum())
+    return [base, f"#{slug}", f"#{slug}Mumbai"]
+
+
 def ig_variant(
     angle: str, hook: str, caption: str | None = None, tags: list[str] | None = None
 ) -> dict[str, Any]:
@@ -66,7 +72,7 @@ def ig_variant(
         "rationale": f"{angle} suits monsoon regulars.",
         "content": {
             "caption": caption or f"{hook}\nMasala chai and pakoras all week. Drop in after work.",
-            "hashtags": tags if tags is not None else ["#MumbaiRains", "#chai", "#Bandra"],
+            "hashtags": tags if tags is not None else _tags(angle, "#MumbaiRains"),
             "cta": "Drop in after work",
             "image_idea": "Steaming kulhad of chai on a rain-streaked window ledge",
             "alt_text": "A cup of masala chai by a rainy window",
@@ -74,8 +80,13 @@ def ig_variant(
     }
 
 
+STRUCTURES = ["question-led", "story", "list", "offer-first", "dialogue", "one-liner"]
+
+
 def drafts(*variants: dict[str, Any]) -> str:
-    return json.dumps({"variants": list(variants)})
+    """A draft set; each variant gets a different structure unless it already has one."""
+    out = [{"structure": STRUCTURES[i], **v} for i, v in enumerate(variants)]
+    return json.dumps({"variants": out})
 
 
 THREE = drafts(
@@ -99,3 +110,9 @@ def critique(score: int, revised: dict[str, Any], issues: list[str] | None = Non
             "revised": revised,
         }
     )
+
+
+def draft_in(prompt: str) -> dict[str, Any]:
+    """The draft JSON the critique prompt embeds (whatever text follows it)."""
+    draft, _ = json.JSONDecoder().raw_decode(prompt.split("Draft (JSON):\n", 1)[1])
+    return dict(draft)

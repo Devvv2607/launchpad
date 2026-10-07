@@ -16,7 +16,7 @@ from launchpad.llm import service as llm_service
 from launchpad.llm.errors import LLMAuthError, LLMOutputError
 from launchpad.llm.service import CallContext
 from launchpad.models import ContentItem, LLMCall, User, Workspace
-from tests.content.fake_llm import THREE, ScriptedLLM, critique, drafts, ig_variant
+from tests.content.fake_llm import THREE, ScriptedLLM, critique, draft_in, drafts, ig_variant
 
 
 @pytest.fixture(autouse=True)
@@ -51,8 +51,7 @@ async def test_three_distinct_variants_reviewed_and_saved(monkeypatch: pytest.Mo
     def script(kind: str, prompt: str) -> str:
         if kind == "write":
             return THREE
-        draft = json.loads(prompt.split("Draft (JSON):\n", 1)[1].split("\n\nAutomated", 1)[0])
-        return critique(9, draft)
+        return critique(9, draft_in(prompt))
 
     fake = use(monkeypatch, ScriptedLLM(script))
     ws, ctx = await _ws()
@@ -88,7 +87,7 @@ async def test_three_distinct_variants_reviewed_and_saved(monkeypatch: pytest.Mo
     assert len(items) == 3 and len({i.variant_group for i in items}) == 1
     item = next(i for i in items if i.variant_label == "A")
     assert item.status == "draft" and item.critique_score == 9
-    assert item.hashtags == ["#MumbaiRains", "#chai", "#Bandra"]
+    assert item.hashtags == ["#MumbaiRains", "#Nostalgia", "#NostalgiaMumbai"]
     gen = item.generation
     assert gen["brief"] == "Monsoon chai + pakora offer" and gen["angle"] == "Rainy-day nostalgia"
     assert gen["prompt_versions"]["write_content"].startswith("2026-")
@@ -187,7 +186,7 @@ async def test_generate_endpoint_streams_steps_items_and_done(
     def script(kind: str, prompt: str) -> str:
         if kind == "write":
             return THREE
-        return critique(9, json.loads(prompt.split("Draft (JSON):\n", 1)[1]))
+        return critique(9, draft_in(prompt))
 
     use(monkeypatch, ScriptedLLM(script))
     ws = (
@@ -246,9 +245,7 @@ async def test_edit_revalidates_and_regenerate_keeps_history(
             if state["writes"] == 1:
                 return drafts(ig_variant("Offer-led", "Monsoon menu is here"))
             return drafts(ig_variant("Offer-led", "Fresh take: monsoon menu"))
-        return critique(
-            9, json.loads(prompt.split("Draft (JSON):\n", 1)[1].split("\n\nAutomated", 1)[0])
-        )
+        return critique(9, draft_in(prompt))
 
     use(monkeypatch, ScriptedLLM(script))
     ws = (
@@ -305,6 +302,7 @@ async def test_email_items_store_sanitised_html_and_text(
     }
     variant = {
         "angle": "Cosy monsoon",
+        "structure": "story",
         "hook": "Rain + chai",
         "rationale": "Seasonal",
         "content": email,

@@ -95,6 +95,12 @@ class _DraftSetBase(_Strict):
         angles = [v.angle.strip().lower() for v in self.variants]
         if len(set(angles)) != len(angles):
             raise ValueError("Each variant needs a different angle label; two variants share one.")
+        structures = [v.structure for v in self.variants]
+        if len(set(structures)) != len(structures):
+            raise ValueError(
+                "Each variant needs a different structure (question-led, story, list, "
+                "offer-first, dialogue, one-liner); two variants share one."
+            )
         hooks = [v.hook for v in self.variants]
         for i in range(len(hooks)):
             for j in range(i + 1, len(hooks)):
@@ -114,6 +120,10 @@ def draft_set_model(channel: Channel, n: int) -> type[_DraftSetBase]:
         angle=(
             str,
             Field(description="2-5 word label for the creative angle, e.g. 'Rainy-day nostalgia'"),
+        ),
+        structure=(
+            Literal["question-led", "story", "list", "offer-first", "dialogue", "one-liner"],
+            Field(description="How the copy is built. Every variant uses a different one."),
         ),
         hook=(str, Field(description="The opening line that stops the scroll")),
         rationale=(
@@ -149,7 +159,7 @@ class CritiqueScores(_Strict):
 class _CritiqueBase(_Strict):
     scores: CritiqueScores
     issues: list[str] = Field(
-        max_length=10, description="Concrete, fixable problems. Empty if none."
+        max_length=5, description="Up to 5 concrete, fixable problems, most important first."
     )
     revised: Any
 
